@@ -72,6 +72,31 @@ pub fn reveal(path: &Path) -> Result<(), String> {
 
 /// 给下载的文件打上"来自网络"标记（Zone.Identifier），
 /// 这样 Windows SmartScreen 和 Office 受保护视图会照常检查它，和浏览器下载的文件一样安全。
+/// 防火墙里有没有本程序的规则（安装包加的"PandaDownloader"，或者用户以前在弹窗里点过的）。
+/// 有规则时监听端口不会再弹"是否允许访问网络"的窗；没有就不监听，免得打扰用户。
+pub fn firewall_has_rule() -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let netsh = |args: &[&str]| std::process::Command::new("netsh").args(args).creation_flags(CREATE_NO_WINDOW).output().ok();
+        if netsh(&["advfirewall", "firewall", "show", "rule", "name=PandaDownloader"]).is_some_and(|o| o.status.success()) {
+            return true;
+        }
+        // 用户以前在 Windows 弹窗里选过（允许或拒绝都会留下按程序路径的规则）。
+        // 先切到 UTF-8 代码页，中文路径才能对得上。
+        let Ok(exe) = std::env::current_exe() else { return false };
+        let exe = exe.to_string_lossy().to_lowercase();
+        std::process::Command::new("cmd")
+            .args(["/d", "/c", "chcp 65001 >nul & netsh advfirewall firewall show rule name=all dir=in verbose"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .is_ok_and(|o| String::from_utf8_lossy(&o.stdout).to_lowercase().contains(&exe))
+    }
+    #[cfg(not(windows))]
+    true
+}
+
 /// 文件或整个文件夹的大小。
 pub fn size_of(path: &Path) -> u64 {
     match std::fs::metadata(path) {

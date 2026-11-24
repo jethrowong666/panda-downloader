@@ -125,6 +125,16 @@ Section "主程序" SecMain
   WriteRegStr HKCU "Software\Classes\.torrent" "Content Type" "application/x-bittorrent"
   WriteRegStr HKCU "Software\Classes\.torrent\OpenWithProgids" "PandaDownloader.torrent" ""
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
+
+  ; 防火墙放行（BT 提速：别人能连进来、DHT 正常工作）。只在安装时请求一次管理员权限，
+  ; 以后下载时 Windows 不会再弹"是否允许访问网络"。用户拒绝也没关系，程序会自动用不监听的模式。
+  nsExec::ExecToStack 'netsh advfirewall firewall show rule name=PandaDownloader'
+  Pop $0
+  Pop $1
+  ${If} $0 != 0
+  ${AndIfNot} ${Silent}
+    ExecShellWait "runas" "netsh" 'advfirewall firewall add rule name=PandaDownloader dir=in action=allow enable=yes profile=any program="$INSTDIR\${APPEXE}"' SW_HIDE
+  ${EndIf}
 SectionEnd
 
 Section "Uninstall"
@@ -159,5 +169,14 @@ Section "Uninstall"
   DeleteRegValue HKCU "Software\Classes\.torrent\OpenWithProgids" "PandaDownloader.torrent"
   DeleteRegKey HKCU "Software\Classes\PandaDownloader.torrent"
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
+
+  ; 删掉安装时加的防火墙规则（需要管理员权限，静默卸载时跳过）
+  nsExec::ExecToStack 'netsh advfirewall firewall show rule name=PandaDownloader'
+  Pop $0
+  Pop $1
+  ${If} $0 == 0
+  ${AndIfNot} ${Silent}
+    ExecShellWait "runas" "netsh" 'advfirewall firewall delete rule name=PandaDownloader' SW_HIDE
+  ${EndIf}
   ; 设置和下载记录保留在 %APPDATA%\com.panda.downloader，重装后还在；下载的文件不动。
 SectionEnd

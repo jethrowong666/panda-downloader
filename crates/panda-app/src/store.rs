@@ -25,6 +25,8 @@ pub struct Settings {
     pub auto_resume: bool,
     /// 悬浮窗位置（物理像素），拖动后记住。
     pub float_pos: Option<(i32, i32)>,
+    /// BT 监听端口（第一次用 BT 时随机选一个固定下来，0 = 还没选）。
+    pub bt_port: u16,
 }
 
 impl Default for Settings {
@@ -42,6 +44,7 @@ impl Default for Settings {
             speed_limit: 0,
             auto_resume: true,
             float_pos: None,
+            bt_port: 0,
         }
     }
 }

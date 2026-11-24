@@ -443,12 +443,32 @@ impl Manager {
     }
 
     async fn bt_engine(&self) -> Result<Arc<bt::BtEngine>, String> {
-        let (base, limit) = {
-            let g = self.inner.lock().unwrap();
-            (g.settings.base_dir.clone(), g.settings.speed_limit)
+        if let Some(e) = self.bt_engine.get() {
+            return Ok(e.clone());
+        }
+        // 固定一个监听端口（第一次随机选，之后一直用这个，路由器映射和对方缓存的地址都不会失效）
+        let (base, limit, port) = {
+            let mut g = self.inner.lock().unwrap();
+            if g.settings.bt_port == 0 {
+                let mut b = [0u8; 2];
+                let _ = getrandom::fill(&mut b);
+                g.settings.bt_port = 20000 + (u16::from_le_bytes(b) % 40000);
+                store::save(&self.data_dir.join("settings.json"), &g.settings);
+            }
+            (g.settings.base_dir.clone(), g.settings.speed_limit, g.settings.bt_port)
+        };
+        let firewall_ok = tokio::task::spawn_blocking(sys::firewall_has_rule).await.unwrap_or(false);
+        let cache = self.data_dir.join("trackers.txt");
+        tauri::async_runtime::spawn(bt::refresh_trackers(cache.clone()));
+        let net = bt::NetOpts {
+            // 防火墙没放行时不监听、不开 DHT，避免 Windows 弹窗
+            listen_port: firewall_ok.then_some(port),
+            utp: false,
+            no_dht: !firewall_ok,
+            trackers: bt::load_trackers(&cache),
         };
         self.bt_engine
-            .get_or_try_init(|| async move { bt::BtEngine::new(base, limit).await.map(Arc::new) })
+            .get_or_try_init(|| async move { bt::BtEngine::new(base, limit, net).await.map(Arc::new) })
             .await
             .cloned()
             .map_err(|e| bt::friendly(&format!("BT 引擎启动失败：{e:#}")))

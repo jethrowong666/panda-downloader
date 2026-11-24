@@ -8,7 +8,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use bytes::Bytes;
-use librqbit::{AddTorrent, AddTorrentOptions, AddTorrentResponse, DhtSessionConfig, ManagedTorrent, Session, SessionOptions};
+use librqbit::{
+    AddTorrent, AddTorrentOptions, AddTorrentResponse, DhtSessionConfig, ListenerMode, ListenerOptions, ManagedTorrent, Session,
+    SessionOptions,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::bridge::ReqCtx;
@@ -52,11 +55,38 @@ pub struct Live {
     pub error: Option<String>,
 }
 
+/// 网络相关的选项（提速用）。
+#[derive(Debug, Clone, Default)]
+pub struct NetOpts {
+    /// 监听端口：让别人能主动连进来（同时开 UPnP 让路由器转发）。None = 不监听。
+    pub listen_port: Option<u16>,
+    /// 同时用 uTP（UDP 上的 BT 协议）。
+    pub utp: bool,
+    /// 不开 DHT（防火墙没放行时，避免 Windows 弹窗）。
+    pub no_dht: bool,
+    /// 公开种子额外使用的公共 Tracker（私有种子 librqbit 不会加）。
+    pub trackers: Vec<String>,
+}
+
+/// 每个种子最多同时连接的用户数（librqbit 默认 128）。
+const PEER_LIMIT: usize = 250;
+
 impl BtEngine {
-    pub async fn new(default_dir: PathBuf, download_limit: u64) -> anyhow::Result<Self> {
+    pub async fn new(default_dir: PathBuf, download_limit: u64, net: NetOpts) -> anyhow::Result<Self> {
         std::fs::create_dir_all(&default_dir).ok();
-        let make = |dht_cache: bool| {
+        let trackers: std::collections::HashSet<url::Url> = net.trackers.iter().filter_map(|t| url::Url::parse(t).ok()).collect();
+        let make = |dht_cache: bool, port: Option<u16>| {
             let mut opts = SessionOptions::default();
+            opts.peer_limit = Some(PEER_LIMIT);
+            opts.trackers = trackers.clone();
+            if let Some(port) = port {
+                opts.listen = Some(ListenerOptions {
+                    mode: if net.utp { ListenerMode::TcpAndUtp } else { ListenerMode::TcpOnly },
+                    listen_addr: (std::net::Ipv6Addr::UNSPECIFIED, port).into(),
+                    enable_upnp_port_forwarding: true,
+                    ..Default::default()
+                });
+            }
             // 我们自己管理"重启后接着下"（重新添加种子，librqbit 会校验已下载的部分）
             opts.persistence = None;
             opts.fastresume = false;
@@ -64,16 +94,26 @@ impl BtEngine {
             if download_limit > 0 {
                 opts.ratelimits.download_bps = std::num::NonZeroU32::new(download_limit.min(u32::MAX as u64) as u32);
             }
-            if !dht_cache {
+            if net.no_dht {
+                opts.dht = None;
+            } else if !dht_cache {
                 opts.dht = Some(DhtSessionConfig { persistence: None, ..Default::default() });
             }
             opts
         };
-        // DHT 节点缓存文件被别的程序占着（比如另一个 rqbit）时，不用缓存再试一次
-        let session = match Session::new_with_opts(default_dir.clone(), make(true)).await {
-            Ok(s) => s,
-            Err(_) => Session::new_with_opts(default_dir.clone(), make(false)).await?,
-        };
+        // 依次退让：DHT 节点缓存文件被别的程序占着就不用缓存；端口被占用就换随机端口；还不行就不监听
+        let mut session = None;
+        let mut last_err = None;
+        for (cache, port) in [(true, net.listen_port), (false, net.listen_port), (false, net.listen_port.map(|_| 0)), (false, None)] {
+            match Session::new_with_opts(default_dir.clone(), make(cache, port)).await {
+                Ok(s) => {
+                    session = Some(s);
+                    break;
+                }
+                Err(e) => last_err = Some(e),
+            }
+        }
+        let Some(session) = session else { return Err(last_err.unwrap()) };
         Ok(Self { session, default_dir })
     }
 
@@ -219,6 +259,91 @@ fn check_torrent(b: Bytes) -> Result<Source, String> {
     }
 }
 
+/// 内置的公共 Tracker（联网更新失败时用）。来源：github.com/ngosang/trackerslist。
+const BUILTIN_TRACKERS: &str = "\
+udp://tracker.opentrackr.org:1337/announce
+udp://open.demonii.com:1337/announce
+udp://open.stealth.si:80/announce
+udp://tracker.torrent.eu.org:451/announce
+udp://exodus.desync.com:6969/announce
+udp://tracker.theoks.net:6969/announce
+udp://explodie.org:6969/announce
+udp://tracker.dler.org:6969/announce
+udp://tracker.qu.ax:6969/announce
+udp://tracker.srv00.com:6969/announce
+udp://tracker.filemail.com:6969/announce
+udp://tracker.tiny-vps.com:6969/announce
+udp://opentracker.io:6969/announce
+udp://p4p.arenabg.com:1337/announce
+udp://tracker.0x7c0.com:6969/announce
+udp://tracker.bittor.pw:1337/announce
+http://tracker.opentrackr.org:1337/announce
+https://tracker.tamersunion.org:443/announce
+";
+
+/// 列表最多用这么多个（太多反而拖慢启动）。
+const MAX_TRACKERS: usize = 60;
+
+fn parse_trackers(text: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for l in text.lines().map(str::trim) {
+        let ok = (l.starts_with("udp://") || l.starts_with("http://") || l.starts_with("https://")) && url::Url::parse(l).is_ok();
+        if ok && !out.iter().any(|x| x == l) {
+            out.push(l.to_string());
+        }
+        if out.len() >= MAX_TRACKERS {
+            break;
+        }
+    }
+    out
+}
+
+pub fn builtin_trackers() -> Vec<String> {
+    parse_trackers(BUILTIN_TRACKERS)
+}
+
+/// 公共 Tracker：缓存（每天联网更新一次）加内置的，合并去重。
+pub fn load_trackers(cache: &Path) -> Vec<String> {
+    let mut all = std::fs::read_to_string(cache).map(|t| parse_trackers(&t)).unwrap_or_default();
+    for t in builtin_trackers() {
+        if all.len() >= MAX_TRACKERS {
+            break;
+        }
+        if !all.contains(&t) {
+            all.push(t);
+        }
+    }
+    all
+}
+
+/// 缓存超过一天就在后台更新（国内优先走 jsDelivr 镜像）。
+pub async fn refresh_trackers(cache: PathBuf) {
+    let fresh = std::fs::metadata(&cache)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.elapsed().ok())
+        .is_some_and(|d| d < std::time::Duration::from_secs(24 * 3600));
+    if fresh {
+        return;
+    }
+    let Ok(client) = reqwest::Client::builder().timeout(std::time::Duration::from_secs(15)).build() else { return };
+    for url in [
+        "https://cdn.jsdelivr.net/gh/ngosang/trackerslist@master/trackers_best.txt",
+        "https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_best.txt",
+        "https://ngosang.github.io/trackerslist/trackers_best.txt",
+    ] {
+        let Ok(r) = client.get(url).send().await else { continue };
+        let Ok(text) = r.text().await else { continue };
+        if parse_trackers(&text).len() >= 5 {
+            if let Some(d) = cache.parent() {
+                let _ = std::fs::create_dir_all(d);
+            }
+            let _ = std::fs::write(&cache, text);
+            return;
+        }
+    }
+}
+
 /// 把 librqbit 的英文错误换成用户能看懂的话（附原文）。
 pub fn friendly(e: &str) -> String {
     let low = e.to_ascii_lowercase();
@@ -248,6 +373,21 @@ mod tests {
         assert!(check_torrent(Bytes::from_static(b"garbage")).is_err());
     }
 
+    #[test]
+    fn trackers() {
+        let b = builtin_trackers();
+        assert!(b.len() >= 15 && b.iter().all(|t| !t.starts_with("wss")));
+        let t = parse_trackers("udp://a.com:1/announce
+
+wss://x.com/a
+udp://a.com:1/announce
+http://b.com/announce
+垃圾");
+        assert_eq!(t, vec!["udp://a.com:1/announce", "http://b.com/announce"]);
+        // 没有缓存时用内置的
+        assert_eq!(load_trackers(Path::new("Z:/不存在/trackers.txt")), b);
+    }
+
     #[tokio::test]
     async fn sources() {
         let ctx = ReqCtx::default();
@@ -266,7 +406,7 @@ mod tests {
         let loc = std::env::var("PANDA_BT_TEST").expect("PANDA_BT_TEST");
         let dir = std::env::temp_dir().join("panda_bt_test");
         let _ = std::fs::remove_dir_all(&dir);
-        let engine = BtEngine::new(dir.clone(), 0).await.unwrap();
+        let engine = BtEngine::new(dir.clone(), 0, NetOpts::default()).await.unwrap();
         let src = fetch_source(&loc, &ReqCtx::default()).await.unwrap();
         let t0 = std::time::Instant::now();
         let (h, meta) = tokio::time::timeout(std::time::Duration::from_secs(120), engine.add(&src, &dir, false)).await.expect("元数据超时").unwrap();
@@ -290,5 +430,57 @@ mod tests {
         println!("输出位置 {}", out.display());
         assert!(out.exists());
         engine.remove(&h, true).await;
+    }
+
+    /// 测速：`PANDA_BT_BENCH="名字=地址;名字=地址" cargo test --release -p panda-app bt_bench -- --ignored --nocapture`
+    /// 每个种子下 45 秒，报拿到元数据的时间、用户数、平均速度。
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn bt_bench() {
+        let list = std::env::var("PANDA_BT_BENCH").expect("PANDA_BT_BENCH");
+        let secs: u64 = std::env::var("PANDA_BT_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(45);
+        let dir = std::env::temp_dir().join("panda_bt_bench");
+        let _ = std::fs::remove_dir_all(&dir);
+        let net = NetOpts {
+            listen_port: std::env::var("PANDA_BT_PORT").ok().and_then(|p| p.parse().ok()),
+            utp: std::env::var("PANDA_BT_UTP").is_ok(),
+            no_dht: false,
+            trackers: if std::env::var("PANDA_BT_TRACKERS").is_ok() { builtin_trackers() } else { vec![] },
+        };
+        println!("BENCH 选项 {net:?}");
+        let engine = BtEngine::new(dir.clone(), 0, net).await.unwrap();
+        for item in list.split(';').filter(|s| !s.is_empty()) {
+            let (name, loc) = item.split_once('=').unwrap();
+            let src = fetch_source(loc, &ReqCtx::default()).await.unwrap();
+            let t0 = std::time::Instant::now();
+            let added = tokio::time::timeout(std::time::Duration::from_secs(90), engine.add(&src, &dir, false)).await;
+            let Ok(Ok((h, _))) = added else {
+                println!("BENCH {name}: 90 秒内没拿到元数据");
+                continue;
+            };
+            let meta_t = t0.elapsed().as_secs_f64();
+            let t1 = std::time::Instant::now();
+            let mut max_peers = 0;
+            let mut peers_10 = 0;
+            for i in 1..=secs {
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                let l = live_of(&h);
+                max_peers = max_peers.max(l.peers);
+                if i == 10 {
+                    peers_10 = l.peers;
+                }
+                if l.finished {
+                    break;
+                }
+            }
+            let got = live_of(&h).downloaded;
+            let el = t1.elapsed().as_secs_f64();
+            println!(
+                "BENCH {name}: 元数据 {meta_t:.1}s | 10 秒时 {peers_10} 个用户 | 最多 {max_peers} 个 | {:.1} MB / {el:.0}s = 平均 {:.2} MB/s",
+                got as f64 / 1048576.0,
+                got as f64 / 1048576.0 / el
+            );
+            engine.remove(&h, true).await;
+        }
     }
 }
