@@ -25,7 +25,7 @@ function row(t) {
   } else {
     right = `<span class="pct num">${t.probing ? "" : t.total ? p.toFixed(1) + "%" : human(t.downloaded)}</span>`;
     stats = t.video?.merging ? "<span>正在合并音视频…</span>" : t.video?.resolving ? "<span>正在解析视频…</span>" : t.bt?.resolving ? "<span>正在获取种子信息…</span>" : t.probing ? "<span>正在连接…</span>"
-      : `<span class="num">${speed(t.speed) || "等待数据…"}</span>${t.total && t.speed ? `<span class="dot num">剩余 ${eta(t)}</span>` : ""}` + (t.bt ? `<span class="dot num">${t.bt.peers} 个用户</span>` : "");
+      : `<span class="num">${speed(t.speed) || "等待数据…"}</span>${t.total && t.speed ? `<span class="dot num">剩余 ${eta(t)}</span>` : ""}` + (t.bt ? `<span class="dot num">${t.bt.peers} 个用户</span>` + (t.bt.web ? '<span class="dot">网络种子加速</span>' : "") : "");
     ops = `<button class="icon" data-act="pause" data-id="${t.id}" title="暂停">${ICON.pause}</button>`;
     if (!t.total) barCls = "indeterminate";
   }

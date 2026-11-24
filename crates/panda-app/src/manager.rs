@@ -122,17 +122,54 @@ struct BtJob {
     resolving: bool,
     /// 重启后种子还没加回会话时显示的已下载量。
     last_downloaded: u64,
+    /// 正在用 HTTP 网络种子加速。
+    web: Option<Arc<WebRun>>,
     cancel: CancellationToken,
+}
+
+/// 网络种子（HTTP）下载的状态。
+struct WebRun {
+    staging: PathBuf,
+    /// 已经下完的文件字节数。
+    done: std::sync::atomic::AtomicU64,
+    /// 正在下的文件。
+    tasks: Mutex<Vec<(PauseHandle, Arc<Progress>)>>,
+    cancel: CancellationToken,
+}
+
+impl WebRun {
+    fn downloaded(&self) -> u64 {
+        self.done.load(std::sync::atomic::Ordering::Relaxed) + self.tasks.lock().unwrap().iter().map(|(_, p)| p.downloaded()).sum::<u64>()
+    }
+
+    fn stop(&self) {
+        self.cancel.cancel();
+        for (p, _) in self.tasks.lock().unwrap().iter() {
+            p.pause();
+        }
+    }
 }
 
 impl BtJob {
     fn new(location: String, saved_torrent: Option<PathBuf>) -> Self {
-        Self { location, saved_torrent, engine: None, handle: None, meta: None, resolving: false, last_downloaded: 0, cancel: CancellationToken::new() }
+        Self {
+            location,
+            saved_torrent,
+            engine: None,
+            handle: None,
+            meta: None,
+            resolving: false,
+            last_downloaded: 0,
+            web: None,
+            cancel: CancellationToken::new(),
+        }
     }
 
     /// 已下载字节数：种子在会话里就取实时值，否则用上次记下的。
     fn downloaded(&self) -> u64 {
-        self.live().map(|l| l.downloaded).unwrap_or(self.last_downloaded)
+        let bt = self.live().map(|l| l.downloaded).unwrap_or(self.last_downloaded);
+        // 网络种子在另一份临时文件里下，两边取进度大的那个
+        bt.max(self.web.as_ref().map_or(0, |w| w.downloaded()))
     }
 
     fn live(&self) -> Option<bt::Live> {
@@ -142,6 +179,9 @@ impl BtJob {
     /// 停下：等待中的流程退出，种子暂停（保留已下载的部分）。
     fn stop(&self) {
         self.cancel.cancel();
+        if let Some(w) = &self.web {
+            w.stop();
+        }
         if let (Some(e), Some(h)) = (self.engine.clone(), self.handle.clone()) {
             tauri::async_runtime::spawn(async move { e.pause(&h).await });
         }
@@ -150,6 +190,17 @@ impl BtJob {
     /// 彻底移除：从 BT 会话里删掉，连同已下载的文件和保存的种子文件。
     fn discard(&self, dir: &Path) {
         self.cancel.cancel();
+        if let Some(w) = &self.web {
+            w.stop();
+        }
+        // 网络种子的临时文件夹（等 HTTP 下载停下、关掉文件再删）
+        if let Some(m) = self.meta.as_ref() {
+            let staging = bt::staging_dir(dir, m);
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(1500)).await;
+                let _ = std::fs::remove_dir_all(staging);
+            });
+        }
         if let (Some(e), Some(h)) = (self.engine.clone(), self.handle.clone()) {
             tauri::async_runtime::spawn(async move { e.remove(&h, true).await });
         } else if let Some(m) = self.meta.as_ref() {
@@ -336,6 +387,8 @@ pub struct BtView {
     pub peers: u32,
     pub files: usize,
     pub upload_speed: u64,
+    /// 正在用 HTTP 网络种子加速。
+    pub web: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -675,8 +728,12 @@ impl Manager {
                     r = engine.add(&source, &dir, false) => r,
                 };
                 let (h, meta) = added.map_err(|e| Some(bt::friendly(&format!("{e:#}"))))?;
-                // 记下元数据和种子文件
-                let torrent_file = bt::torrent_bytes(&h).and_then(|b| {
+                // 记下元数据和种子文件（种子文件用原始内容，里面才有网络种子地址 url-list）
+                let original = match &source {
+                    bt::Source::Bytes(b) => Some(b.clone()),
+                    bt::Source::Magnet(_) => None,
+                };
+                let torrent_file = original.or_else(|| bt::torrent_bytes(&h)).and_then(|b| {
                     let p = self.data_dir.join("torrents").join(format!("{}.torrent", meta.info_hash));
                     std::fs::create_dir_all(p.parent()?).ok()?;
                     std::fs::write(&p, &b).ok()?;
@@ -714,21 +771,41 @@ impl Manager {
             }
         };
 
-        // 等下载完（暂停 / 取消时退出等待）
-        tokio::select! {
-            _ = cancel.cancelled() => return Err(None),
-            r = handle.wait_until_completed() => r.map_err(|e| Some(bt::friendly(&format!("{e:#}"))))?,
-        }
-        let meta = {
+        // 网络种子地址：种子文件里的 url-list、磁力链接里的 ws=
+        let (saved, meta) = {
             let g = self.inner.lock().unwrap();
-            g.tasks.iter().find(|t| t.id == id).and_then(|t| t.bt.as_ref()).and_then(|b| b.meta.clone())
+            let b = g.tasks.iter().find(|t| t.id == id).and_then(|t| t.bt.as_ref());
+            (b.and_then(|b| b.saved_torrent.clone()), b.and_then(|b| b.meta.clone()))
+        };
+        let torrent = saved.and_then(|p| std::fs::read(p).ok());
+        let seeds = bt::webseeds(&location, torrent.as_deref());
+
+        // 等下载完（暂停 / 取消时退出等待）。有网络种子时，BT 慢就同时用 HTTP 下，谁先下完用谁。
+        let handle = match (seeds.is_empty(), meta.clone(), torrent) {
+            (false, Some(m), Some(t)) => tokio::select! {
+                _ = cancel.cancelled() => return Err(None),
+                r = handle.wait_until_completed() => {
+                    r.map_err(|e| Some(bt::friendly(&format!("{e:#}"))))?;
+                    self.drop_web(id, &dir, &m);
+                    handle.clone()
+                }
+                h = self.webseed_race(id, &engine, &handle, &dir, &m, &seeds, t.into(), &cancel) => h?,
+            },
+            _ => {
+                tokio::select! {
+                    _ = cancel.cancelled() => return Err(None),
+                    r = handle.wait_until_completed() => r.map_err(|e| Some(bt::friendly(&format!("{e:#}"))))?,
+                }
+                handle
+            }
         };
         let path = bt::output_path(&meta.unwrap_or_else(|| bt::meta_of(&handle)), &dir);
         engine.remove(&handle, false).await;
         {
             let mut g = self.inner.lock().unwrap();
             if let Some(b) = g.tasks.iter_mut().find(|t| t.id == id).and_then(|t| t.bt.as_mut()) {
-                b.last_downloaded = b.downloaded();
+                // 下完了：已下载 = 总大小（网络种子下完后重新校验的种子，实时进度可能还没更新）
+                b.last_downloaded = b.downloaded().max(b.meta.as_ref().map_or(0, |m| m.total));
                 b.handle = None;
                 if let Some(p) = b.saved_torrent.take() {
                     let _ = std::fs::remove_file(p);
@@ -736,6 +813,200 @@ impl Manager {
             }
         }
         Ok(path)
+    }
+
+    /// BT 先下完了：停掉网络种子，删临时文件。
+    fn drop_web(&self, id: u64, dir: &Path, meta: &bt::Meta) {
+        let web = self.with(id, |e| e.bt.as_mut().and_then(|b| b.web.take())).flatten();
+        if let Some(w) = web {
+            w.stop();
+        }
+        let staging = bt::staging_dir(dir, meta);
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+            let _ = std::fs::remove_dir_all(staging);
+        });
+    }
+
+    /// 网络种子和 BT 赛跑：BT 持续慢（每秒不到 2MB）才启用 HTTP；HTTP 明显更快就暂停 BT，把带宽让给它。
+    /// HTTP 全部下完后，把文件放到位，再让 librqbit 重新加载种子、校验哈希（坏块会自动用 BT 补）。
+    /// 返回校验后的新句柄。HTTP 失败就恢复 BT，自己永远不返回（由 BT 完成）。
+    #[allow(clippy::too_many_arguments)]
+    async fn webseed_race(
+        self: &Arc<Self>,
+        id: u64,
+        engine: &Arc<bt::BtEngine>,
+        h: &bt::Handle,
+        dir: &Path,
+        meta: &bt::Meta,
+        seeds: &[String],
+        torrent: bytes::Bytes,
+        cancel: &CancellationToken,
+    ) -> Result<bt::Handle, Option<String>> {
+        const SLOW: u64 = 2 * 1024 * 1024;
+        let staging = bt::staging_dir(dir, meta);
+        // 1. 看 BT 慢不慢（已经有临时文件说明上次在用网络种子，直接接着来）
+        if !staging.exists() {
+            let mut last = bt::live_of(h).downloaded;
+            let mut slow = 0;
+            loop {
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                let now = bt::live_of(h).downloaded;
+                let rate = now.saturating_sub(last) / 2;
+                last = now;
+                slow = if rate < SLOW { slow + 2 } else { 0 };
+                if slow >= 8 {
+                    break;
+                }
+            }
+        }
+        // 2. 用 HTTP 下所有文件（同时下 3 个）
+        let web = Arc::new(WebRun {
+            staging: staging.clone(),
+            done: Default::default(),
+            tasks: Mutex::new(Vec::new()),
+            cancel: cancel.child_token(),
+        });
+        let conns = {
+            let mut g = self.inner.lock().unwrap();
+            let conns = g.settings.connections;
+            if let Some(b) = g.tasks.iter_mut().find(|t| t.id == id).and_then(|t| t.bt.as_mut()) {
+                b.web = Some(web.clone());
+            }
+            conns
+        };
+        let files = seeds.iter().map(|s| bt::web_files(h, meta, s)).collect::<Vec<_>>();
+        let count = files.first().map_or(0, |f| f.len());
+        let fetch = {
+            let me = self.clone();
+            let web = web.clone();
+            async move {
+                use futures_util::StreamExt;
+                let results: Vec<bool> = futures_util::stream::iter(0..count)
+                    .map(|i| {
+                        let (me, web, files) = (me.clone(), web.clone(), &files);
+                        async move { me.fetch_web_file(&web, files.iter().filter_map(|f| f.get(i)).collect(), conns).await }
+                    })
+                    .buffer_unordered(3)
+                    .collect()
+                    .await;
+                count > 0 && results.iter().all(|ok| *ok)
+            }
+        };
+        // HTTP 明显比 BT 快就暂停 BT
+        let watch = {
+            let (engine, h, web) = (engine.clone(), h.clone(), web.clone());
+            async move {
+                let mut paused = false;
+                let (mut bt_last, mut web_last) = (bt::live_of(&h).downloaded, web.downloaded());
+                loop {
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    let (b, w) = (bt::live_of(&h).downloaded, web.downloaded());
+                    let (bt_rate, web_rate) = (b.saturating_sub(bt_last), w.saturating_sub(web_last));
+                    (bt_last, web_last) = (b, w);
+                    if !paused && web_rate > bt_rate * 2 && web_rate > 0 {
+                        engine.pause(&h).await;
+                        paused = true;
+                    }
+                }
+            }
+        };
+        let ok = tokio::select! {
+            ok = fetch => ok,
+            _ = watch => false,
+        };
+        if !ok || cancel.is_cancelled() {
+            if cancel.is_cancelled() {
+                return Err(None);
+            }
+            // 网络种子不行：停掉 HTTP，BT 继续
+            web.stop();
+            self.with(id, |e| e.bt.as_mut().map(|b| b.web = None));
+            let _ = engine.resume(h).await;
+            std::future::pending::<()>().await;
+        }
+        // 3. 放到位：先从会话移除（关掉 BT 打开的文件），再把 HTTP 下好的文件移过去
+        engine.remove(h, false).await;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        for f in files_of(&staging) {
+            let Ok(rel) = f.strip_prefix(&staging) else { continue };
+            let dst = dir.join(rel);
+            if let Some(p) = dst.parent() {
+                let _ = std::fs::create_dir_all(p);
+            }
+            let _ = std::fs::remove_file(&dst);
+            if std::fs::rename(&f, &dst).is_err() {
+                let _ = std::fs::copy(&f, &dst);
+            }
+        }
+        let _ = std::fs::remove_dir_all(&staging);
+        // 4. 重新加入会话：librqbit 会校验已有文件，坏块再用 BT 下
+        let (h2, _) = engine.add(&bt::Source::Bytes(torrent), dir, false).await.map_err(|e| Some(bt::friendly(&format!("{e:#}"))))?;
+        self.with(id, |e| {
+            if let Some(b) = e.bt.as_mut() {
+                b.handle = Some(h2.clone());
+                b.web = None;
+            }
+        });
+        tokio::select! {
+            _ = cancel.cancelled() => return Err(None),
+            r = h2.wait_until_completed() => r.map_err(|e| Some(bt::friendly(&format!("{e:#}"))))?,
+        }
+        Ok(h2)
+    }
+
+    /// 用 HTTP 下网络种子上的一个文件（几个网络种子地址轮流试）。成功返回 true。
+    async fn fetch_web_file(&self, web: &WebRun, candidates: Vec<&bt::WebFile>, conns: usize) -> bool {
+        let Some(first) = candidates.first() else { return false };
+        let target = web.staging.join(&first.rel);
+        // 已经下好了（上次的）
+        if std::fs::metadata(&target).is_ok_and(|m| m.len() == first.len) {
+            web.done.fetch_add(first.len, std::sync::atomic::Ordering::Relaxed);
+            return true;
+        }
+        if first.len == 0 {
+            if let Some(p) = target.parent() {
+                let _ = std::fs::create_dir_all(p);
+            }
+            return std::fs::write(&target, b"").is_ok();
+        }
+        let (Some(parent), Some(name)) = (target.parent(), target.file_name()) else { return false };
+        let _ = std::fs::create_dir_all(parent);
+        for f in candidates {
+            if web.cancel.is_cancelled() {
+                return false;
+            }
+            let opts = TaskOptions {
+                connections: conns.max(8),
+                out_dir: parent.to_path_buf(),
+                file_name: Some(name.to_string_lossy().into_owned()),
+                ..Default::default()
+            };
+            let task = self.downloader_for(&f.url, None).start(&f.url, opts);
+            let entry = (task.pause_handle(), task.progress.clone());
+            web.tasks.lock().unwrap().push(entry.clone());
+            let r = task.wait().await;
+            let mut tasks = web.tasks.lock().unwrap();
+            tasks.retain(|(_, p)| !Arc::ptr_eq(p, &entry.1));
+            match r {
+                Ok(path) => {
+                    let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                    if size != f.len {
+                        // 服务器上的文件和种子对不上，不用它
+                        let _ = std::fs::remove_file(&path);
+                        continue;
+                    }
+                    if path != target {
+                        let _ = std::fs::rename(&path, &target);
+                    }
+                    web.done.fetch_add(f.len, std::sync::atomic::Ordering::Relaxed);
+                    return true;
+                }
+                Err(_) if web.cancel.is_cancelled() => return false,
+                Err(_) => continue,
+            }
+        }
+        false
     }
 
     /// 开始（或继续）一个任务。
@@ -1538,6 +1809,7 @@ fn view(t: &Entry, with_space: bool) -> TaskView {
             peers: live.as_ref().map(|l| l.peers).unwrap_or(0),
             files: meta.map(|m| m.files).unwrap_or(0),
             upload_speed: live.as_ref().map(|l| l.upload_speed).unwrap_or(0),
+            web: b.web.is_some(),
         }
     });
     TaskView {
@@ -1566,4 +1838,20 @@ fn view(t: &Entry, with_space: bool) -> TaskView {
         video,
         bt,
     }
+}
+
+/// 文件夹里所有文件（递归）。
+fn files_of(dir: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    if let Ok(rd) = std::fs::read_dir(dir) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                out.extend(files_of(&p));
+            } else {
+                out.push(p);
+            }
+        }
+    }
+    out
 }

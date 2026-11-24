@@ -277,6 +277,138 @@ fn check_torrent(b: Bytes) -> Result<Source, String> {
     }
 }
 
+// ---------------- 网络种子（BEP 19，url-list） ----------------
+// 有的种子除了 BT 用户，还附带 HTTP 下载地址（archive.org、一些 Linux 发行版）。
+// librqbit 不支持，我们用自己的多线程 HTTP 引擎去下，下完再交给 librqbit 校验哈希。
+
+/// 读 bencode 字符串（`长度:内容`）。
+fn bstr<'a>(b: &'a [u8], i: &mut usize) -> Option<&'a [u8]> {
+    let colon = b.get(*i..)?.iter().position(|&c| c == b':')? + *i;
+    let n: usize = std::str::from_utf8(&b[*i..colon]).ok()?.parse().ok()?;
+    let s = b.get(colon + 1..colon + 1 + n)?;
+    *i = colon + 1 + n;
+    Some(s)
+}
+
+/// 跳过一个 bencode 值。
+fn bskip(b: &[u8], i: &mut usize) -> Option<()> {
+    match *b.get(*i)? {
+        b'i' => {
+            *i += b.get(*i..)?.iter().position(|&c| c == b'e')? + 1;
+        }
+        b'l' | b'd' => {
+            *i += 1;
+            while *b.get(*i)? != b'e' {
+                bskip(b, i)?;
+            }
+            *i += 1;
+        }
+        b'0'..=b'9' => {
+            bstr(b, i)?;
+        }
+        _ => return None,
+    }
+    Some(())
+}
+
+/// 种子文件顶层的 `url-list`（一个字符串或字符串列表）。
+fn url_list(torrent: &[u8]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    if torrent.first() != Some(&b'd') {
+        return out;
+    }
+    i += 1;
+    while i < torrent.len() && torrent[i] != b'e' {
+        let Some(key) = bstr(torrent, &mut i) else { break };
+        if key == b"url-list" {
+            match torrent.get(i) {
+                Some(b'l') => {
+                    i += 1;
+                    while i < torrent.len() && torrent[i] != b'e' {
+                        match bstr(torrent, &mut i) {
+                            Some(s) => out.extend(std::str::from_utf8(s).ok().map(str::to_string)),
+                            None => break,
+                        }
+                    }
+                }
+                _ => out.extend(bstr(torrent, &mut i).and_then(|s| std::str::from_utf8(s).ok()).map(str::to_string)),
+            }
+            break;
+        }
+        if bskip(torrent, &mut i).is_none() {
+            break;
+        }
+    }
+    out
+}
+
+/// 网络种子地址：种子文件里的 url-list，加上磁力链接里的 `ws=`。只要 http(s)。
+pub fn webseeds(location: &str, torrent: Option<&[u8]>) -> Vec<String> {
+    let mut out: Vec<String> = torrent.map(url_list).unwrap_or_default();
+    if location.trim().to_ascii_lowercase().starts_with("magnet:") {
+        if let Ok(u) = url::Url::parse(location.trim()) {
+            out.extend(u.query_pairs().filter(|(k, _)| k == "ws").map(|(_, v)| v.into_owned()));
+        }
+    }
+    let mut seen = Vec::new();
+    out.retain(|u| (u.starts_with("http://") || u.starts_with("https://")) && url::Url::parse(u).is_ok() && {
+        let new = !seen.contains(u);
+        seen.push(u.clone());
+        new
+    });
+    out
+}
+
+/// 网络种子下载的临时文件夹（在保存位置里，和最终文件同一个磁盘，下完直接移过去）。
+pub fn staging_dir(out_dir: &Path, meta: &Meta) -> PathBuf {
+    let tag: String = meta.info_hash.chars().take(8).collect();
+    out_dir.join(format!(".panda-webseed-{tag}"))
+}
+
+/// 网络种子上的一个文件。
+#[derive(Debug, Clone, PartialEq)]
+pub struct WebFile {
+    pub url: String,
+    /// 相对保存目录的路径（多文件种子带种子名子文件夹）。
+    pub rel: PathBuf,
+    pub len: u64,
+}
+
+/// 按 BEP 19 拼出每个文件的网址。`files` 是种子里的 (路径各段, 大小)，`sub` 是我们放多文件种子的子文件夹。
+fn web_urls(base: &str, name: &str, files: &[(Vec<String>, u64)], multi: bool, sub: &Path) -> Vec<WebFile> {
+    let Ok(base) = url::Url::parse(base) else { return vec![] };
+    let mut out = Vec::new();
+    for (parts, len) in files {
+        let mut u = base.clone();
+        if multi || base.path().ends_with('/') {
+            let Ok(mut seg) = u.path_segments_mut() else { return vec![] };
+            seg.pop_if_empty().push(name);
+            if multi {
+                seg.extend(parts.iter());
+            }
+        }
+        let rel = if multi { parts.iter().fold(sub.to_path_buf(), |p, c| p.join(c)) } else { PathBuf::from(parts.last().cloned().unwrap_or_default()) };
+        out.push(WebFile { url: u.into(), rel, len: *len });
+    }
+    out
+}
+
+/// 这个种子在某个网络种子地址上的全部文件（跳过 BEP 47 填充文件）。
+pub fn web_files(h: &Handle, meta: &Meta, base: &str) -> Vec<WebFile> {
+    let files: Vec<(Vec<String>, u64)> = h
+        .with_metadata(|m| {
+            m.file_infos
+                .iter()
+                .filter(|f| !f.attrs.padding)
+                .map(|f| (f.relative_filename.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect(), f.len))
+                .collect()
+        })
+        .unwrap_or_default();
+    let multi = meta.files != 1;
+    web_urls(base, &meta.name, &files, multi, if multi { &meta.content } else { Path::new("") })
+}
+
 /// 内置的公共 Tracker（联网更新失败时用）。来源：github.com/ngosang/trackerslist。
 const BUILTIN_TRACKERS: &str = "\
 udp://tracker.opentrackr.org:1337/announce
@@ -478,6 +610,80 @@ mod tests {
         ok.extend_from_slice(b"ee");
         let (h, meta) = engine.add(&Source::Bytes(Bytes::from(ok)), &dir, true).await.unwrap();
         assert_eq!(meta.name, "a");
+        engine.remove(&h, true).await;
+    }
+
+    #[test]
+    fn webseed_parsing() {
+        // 顶层 url-list 是列表；info 里的同名键不算
+        let t = b"d8:announce3:abc4:infod8:url-list5:wronge8:url-listl22:https://a.com/files/x/13:http://b.com/ee";
+        assert_eq!(url_list(t), vec!["https://a.com/files/x/", "http://b.com/"]);
+        // 顶层 url-list 是字符串
+        let t = b"d4:infod4:name1:ae8:url-list13:https://c.com5:zzzzzi1ee";
+        assert_eq!(url_list(t), vec!["https://c.com"]);
+        assert!(url_list(b"d4:infod4:name1:aee").is_empty());
+        assert!(url_list(b"garbage").is_empty());
+        // 磁力链接的 ws=，去重，只要 http(s)
+        let m = "magnet:?xt=urn:btih:08ada5a7a6183aae1e09d831df6748d566095a10&ws=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2F&ws=ftp%3A%2F%2Fx";
+        assert_eq!(webseeds(m, None), vec!["https://webtorrent.io/torrents/"]);
+        assert_eq!(webseeds("x", Some(b"d8:url-listl13:https://c.com13:https://c.comee")), vec!["https://c.com"]);
+    }
+
+    #[test]
+    fn webseed_urls() {
+        // 多文件：基址 + 种子名 + 路径，空格、中文要编码
+        let files = vec![(vec!["sub dir".to_string(), "a b.mp4".to_string()], 10), (vec!["说明.txt".to_string()], 2)];
+        let w = web_urls("https://archive.org/download/", "Big Buck", &files, true, Path::new("Big Buck"));
+        assert_eq!(w[0].url, "https://archive.org/download/Big%20Buck/sub%20dir/a%20b.mp4");
+        assert_eq!(w[0].rel, Path::new("Big Buck").join("sub dir").join("a b.mp4"));
+        assert_eq!(w[1].url, "https://archive.org/download/Big%20Buck/%E8%AF%B4%E6%98%8E.txt");
+        // 基址不带 / 也一样
+        assert_eq!(web_urls("https://a.com/d", "N", &files[..1], true, Path::new("N"))[0].url, "https://a.com/d/N/sub%20dir/a%20b.mp4");
+        // 单文件：基址以 / 结尾就加文件名，否则基址就是文件本身
+        let one = vec![(vec!["x.iso".to_string()], 5)];
+        assert_eq!(web_urls("https://m.com/iso/", "x.iso", &one, false, Path::new(""))[0].url, "https://m.com/iso/x.iso");
+        assert_eq!(web_urls("https://m.com/iso/x.iso", "x.iso", &one, false, Path::new(""))[0].url, "https://m.com/iso/x.iso");
+        assert_eq!(web_urls("https://m.com/iso/x.iso", "x.iso", &one, false, Path::new(""))[0].rel, Path::new("x.iso"));
+    }
+
+    /// 复现：一边不停读进度、一边等完成，同时暂停，看会不会卡死。
+    /// `PANDA_BT_TEST=<种子网址> cargo test -p panda-app pause_while_polling -- --ignored --nocapture`
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn pause_while_polling() {
+        let loc = std::env::var("PANDA_BT_TEST").expect("PANDA_BT_TEST");
+        let dir = std::env::temp_dir().join("panda_bt_pause");
+        let _ = std::fs::remove_dir_all(&dir);
+        let engine = BtEngine::new(dir.clone(), 0, NetOpts { no_dht: true, ..Default::default() }).await.unwrap();
+        let src = fetch_source(&loc, &ReqCtx::default()).await.unwrap();
+        let (h, _) = engine.add(&src, &dir, false).await.unwrap();
+        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let count = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let poller = {
+            let (h, stop, count) = (h.clone(), stop.clone(), count.clone());
+            std::thread::spawn(move || {
+                while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    let _ = live_of(&h);
+                    count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+            })
+        };
+        let waiter = {
+            let h = h.clone();
+            tokio::spawn(async move { h.wait_until_completed().await })
+        };
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        let paused = tokio::time::timeout(std::time::Duration::from_secs(10), engine.pause(&h)).await;
+        println!("pause 返回: {}", paused.is_ok());
+        let before = count.load(std::sync::atomic::Ordering::Relaxed);
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        let after = count.load(std::sync::atomic::Ordering::Relaxed);
+        println!("暂停后 3 秒读了 {} 次进度", after - before);
+        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        assert!(paused.is_ok() && after > before, "卡死了");
+        waiter.abort();
+        let _ = poller.join();
         engine.remove(&h, true).await;
     }
 
