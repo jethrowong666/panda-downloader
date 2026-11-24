@@ -3775,7 +3775,7 @@ dependencies = [
 
 [[package]]
 name = "panda-app"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "arboard",
@@ -3804,7 +3804,7 @@ dependencies = [
 
 [[package]]
 name = "panda-host"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "serde_json",
  "windows-sys 0.59.0",

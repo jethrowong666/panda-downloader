@@ -69,7 +69,7 @@ function build(live, ok, dup) {
     body.innerHTML = `<div class="file"><span class="badge">${ICON.magnet}</span>
         <div class="grow col"><div class="name ellipsis" id="btName" style="padding:6px 0 0"></div>
         <div class="meta num" id="meta"></div></div></div>
-      <div class="lbl">保存到</div>${pathBox(dir)}<div id="btNote"></div><div class="err" id="err"></div>`;
+      <div class="lbl">保存到</div>${pathBox(dir)}<div class="err" id="err"></div>`;
     foot.innerHTML = `${askBox}<span class="grow"></span><button data-act="cancel">取消</button><button class="primary" data-act="start">开始下载</button>`;
   } else if (mode === "batch") {
     $("#title").textContent = `新建下载 · ${ok.length} 个文件`;
@@ -124,8 +124,7 @@ function update(live, ok) {
     if (b.files > 1) bits.push(`${b.files} 个文件`);
     if (!b.resolving) bits.push(b.peers ? `已连上 ${b.peers} 个用户` : "正在找用户…");
     if (t.free_space != null) bits.push(`剩余空间 ${human(t.free_space)}`);
-    $("#meta").innerHTML = bits.map((x, i) => `<span class="${i ? "dot" : ""}">${x}</span>`).join("") + '<span class="chip">可断点续传</span>' + (b.private ? '<span class="chip">私有种子</span>' : "");
-    $("#btNote").innerHTML = b.private ? '<div class="small muted" style="margin-top:8px">私有种子（PT）：只连种子里的服务器，不用 DHT 和用户交换，符合 PT 站规则。</div>' : "";
+    $("#meta").innerHTML = bits.map((x, i) => `<span class="${i ? "dot" : ""}">${x}</span>`).join("") + '<span class="chip">可断点续传</span>';
     const err = $("#err");
     if (t.status === "failed" && t.error) err.innerHTML = `<div class="notice error">${errHtml(t.error)}</div>`;
     else if (t.total != null && t.free_space != null && t.total - t.downloaded > t.free_space) err.innerHTML = '<div class="notice error">磁盘空间不够，换个保存位置吧</div>';

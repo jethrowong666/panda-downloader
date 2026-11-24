@@ -335,7 +335,6 @@ pub struct BtView {
     pub resolving: bool,
     pub peers: u32,
     pub files: usize,
-    pub private: bool,
     pub upload_speed: u64,
 }
 
@@ -465,6 +464,7 @@ impl Manager {
             listen_port: firewall_ok.then_some(port),
             utp: false,
             no_dht: !firewall_ok,
+            connect_timeout: None,
             trackers: bt::load_trackers(&cache),
         };
         self.bt_engine
@@ -1537,7 +1537,6 @@ fn view(t: &Entry, with_space: bool) -> TaskView {
             resolving: b.resolving,
             peers: live.as_ref().map(|l| l.peers).unwrap_or(0),
             files: meta.map(|m| m.files).unwrap_or(0),
-            private: meta.map(|m| m.private).unwrap_or(false),
             upload_speed: live.as_ref().map(|l| l.upload_speed).unwrap_or(0),
         }
     });

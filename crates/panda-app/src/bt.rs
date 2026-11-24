@@ -1,6 +1,6 @@
 //! BT / 磁力链接下载：内核用 librqbit（纯 Rust，支持磁力、DHT、PEX、Tracker、断点续传）。
 //!
-//! - 私有种子（PT）由 librqbit 自动处理：不开 DHT、不做局域网发现，只用种子里的 Tracker。
+//! - 不支持 PT（私有种子）：拿到元数据发现是私有种子就停下并提示，不下载。
 //! - 我们不伪装成别的客户端，如实报告自己的名字。
 //! - 下载完成后从会话里移除（不长期做种）；做种管理以后单独做。
 
@@ -64,9 +64,14 @@ pub struct NetOpts {
     pub utp: bool,
     /// 不开 DHT（防火墙没放行时，避免 Windows 弹窗）。
     pub no_dht: bool,
-    /// 公开种子额外使用的公共 Tracker（私有种子 librqbit 不会加）。
+    /// 连接用户的超时（秒），None = librqbit 默认 10 秒。
+    pub connect_timeout: Option<u64>,
+    /// 额外使用的公共 Tracker。
     pub trackers: Vec<String>,
 }
+
+/// 私有种子（PT）的错误标记，`friendly` 认它。
+const PRIVATE_TORRENT: &str = "PANDA_PRIVATE_TORRENT";
 
 /// 每个种子最多同时连接的用户数（librqbit 默认 128）。
 const PEER_LIMIT: usize = 250;
@@ -78,6 +83,15 @@ impl BtEngine {
         let make = |dht_cache: bool, port: Option<u16>| {
             let mut opts = SessionOptions::default();
             opts.peer_limit = Some(PEER_LIMIT);
+            if let Some(t) = net.connect_timeout {
+                opts.connect = Some(librqbit::ConnectionOptions {
+                    peer_opts: Some(librqbit::PeerConnectionOptions {
+                        connect_timeout: Some(std::time::Duration::from_secs(t)),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                });
+            }
             opts.trackers = trackers.clone();
             if let Some(port) = port {
                 opts.listen = Some(ListenerOptions {
@@ -134,6 +148,10 @@ impl BtEngine {
                 return Ok((h, meta));
             }
         };
+        // 不做 PT：私有种子直接拒绝（还没开始下载，不会连 PT 站的 Tracker）
+        if listed.info.info().private {
+            anyhow::bail!("{PRIVATE_TORRENT}");
+        }
         let sub = listed
             .output_folder
             .strip_prefix(&self.default_dir)
@@ -210,7 +228,7 @@ pub fn output_path(meta: &Meta, out_dir: &Path) -> PathBuf {
     out_dir.join(&meta.content)
 }
 
-/// 把用户给的地址变成种子来源：磁力链接直接用；网址下载种子文件（带浏览器 Cookie，PT 站常要）；本地路径读文件。
+/// 把用户给的地址变成种子来源：磁力链接直接用；网址下载种子文件（带浏览器 Cookie，有的网站要登录）；本地路径读文件。
 pub async fn fetch_source(location: &str, ctx: &ReqCtx) -> Result<Source, String> {
     let loc = location.trim();
     if loc.to_ascii_lowercase().starts_with("magnet:") {
@@ -346,6 +364,9 @@ pub async fn refresh_trackers(cache: PathBuf) {
 
 /// 把 librqbit 的英文错误换成用户能看懂的话（附原文）。
 pub fn friendly(e: &str) -> String {
+    if e.contains(PRIVATE_TORRENT) {
+        return "这是 PT 站的私有种子，熊猫下载器不支持 PT 下载".into();
+    }
     let low = e.to_ascii_lowercase();
     let msg = if low.contains("timeout") || low.contains("timed out") {
         "找不到能连接的用户（磁力链接可能已经没人分享了）"
@@ -362,6 +383,73 @@ pub fn friendly(e: &str) -> String {
     format!("{msg}\n详情：{raw}")
 }
 
+/// 测速（开发用）：环境变量 `PANDA_BT_BENCH="名字=地址;..."`，可选 `PANDA_BT_SECS`（默认 45）、`PANDA_BT_PORT`、
+/// `PANDA_BT_UTP`、`PANDA_BT_TRACKERS`、`PANDA_BT_CT`（连接超时秒数）。每个种子报元数据时间、用户数、平均速度。
+pub async fn bench(out: &mut dyn FnMut(String)) {
+    let env = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
+    let Some(list) = env("PANDA_BT_BENCH") else {
+        out("没有设置 PANDA_BT_BENCH".into());
+        return;
+    };
+    let secs: u64 = env("PANDA_BT_SECS").and_then(|s| s.parse().ok()).unwrap_or(45);
+    let dir = std::env::temp_dir().join("panda_bt_bench");
+    let _ = std::fs::remove_dir_all(&dir);
+    let net = NetOpts {
+        listen_port: env("PANDA_BT_PORT").and_then(|p| p.parse().ok()),
+        utp: env("PANDA_BT_UTP").is_some(),
+        no_dht: false,
+        connect_timeout: env("PANDA_BT_CT").and_then(|p| p.parse().ok()),
+        trackers: if env("PANDA_BT_TRACKERS").is_some() { builtin_trackers() } else { vec![] },
+    };
+    out(format!("BENCH 选项 监听 {:?} uTP {} 超时 {:?} Tracker {} 个", net.listen_port, net.utp, net.connect_timeout, net.trackers.len()));
+    let engine = match BtEngine::new(dir.clone(), 0, net).await {
+        Ok(e) => e,
+        Err(e) => return out(format!("引擎启动失败 {e:#}")),
+    };
+    for item in list.split(';').filter(|s| !s.is_empty()) {
+        let Some((name, loc)) = item.split_once('=') else { continue };
+        let src = match fetch_source(loc, &ReqCtx::default()).await {
+            Ok(s) => s,
+            Err(e) => {
+                out(format!("BENCH {name}: {e}"));
+                continue;
+            }
+        };
+        let t0 = std::time::Instant::now();
+        let added = tokio::time::timeout(std::time::Duration::from_secs(90), engine.add(&src, &dir, false)).await;
+        let Ok(Ok((h, _))) = added else {
+            out(format!("BENCH {name}: 90 秒内没拿到元数据"));
+            continue;
+        };
+        let meta_t = t0.elapsed().as_secs_f64();
+        let t1 = std::time::Instant::now();
+        let (mut max_peers, mut peers_10, mut best) = (0, 0, 0u64);
+        let mut last = 0u64;
+        for i in 1..=secs {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            let l = live_of(&h);
+            max_peers = max_peers.max(l.peers);
+            best = best.max(l.downloaded.saturating_sub(last));
+            last = l.downloaded;
+            if i == 10 {
+                peers_10 = l.peers;
+            }
+            if l.finished {
+                break;
+            }
+        }
+        let got = live_of(&h).downloaded;
+        let el = t1.elapsed().as_secs_f64();
+        out(format!(
+            "BENCH {name}: 元数据 {meta_t:.1}s | 10 秒时 {peers_10} 个用户 | 最多 {max_peers} 个 | {:.1} MB / {el:.0}s = 平均 {:.2} MB/s，最快 {:.2} MB/s",
+            got as f64 / 1048576.0,
+            got as f64 / 1048576.0 / el,
+            best as f64 / 1048576.0
+        ));
+        engine.remove(&h, true).await;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -371,6 +459,26 @@ mod tests {
         assert!(matches!(check_torrent(Bytes::from_static(b"d8:announce3:abce")), Ok(Source::Bytes(_))));
         assert!(check_torrent(Bytes::from_static(b"<!doctype html><html>login</html>")).unwrap_err().contains("登录"));
         assert!(check_torrent(Bytes::from_static(b"garbage")).is_err());
+    }
+
+    /// PT 私有种子：拿到元数据就拒绝，提示不支持。
+    #[tokio::test(flavor = "multi_thread")]
+    async fn rejects_private() {
+        let mut b = b"d4:infod6:lengthi1e4:name1:a12:piece lengthi16384e6:pieces20:".to_vec();
+        b.extend_from_slice(&[7u8; 20]);
+        b.extend_from_slice(b"7:privatei1eee");
+        let dir = std::env::temp_dir().join("panda_bt_private");
+        let engine = BtEngine::new(dir.clone(), 0, NetOpts { no_dht: true, ..Default::default() }).await.unwrap();
+        let err = engine.add(&Source::Bytes(Bytes::from(b)), &dir, false).await.err().expect("应该拒绝");
+        assert!(friendly(&format!("{err:#}")).contains("不支持 PT"));
+        assert!(!dir.join("a").exists());
+        // 同样的种子去掉 private 就能加
+        let mut ok = b"d4:infod6:lengthi1e4:name1:a12:piece lengthi16384e6:pieces20:".to_vec();
+        ok.extend_from_slice(&[7u8; 20]);
+        ok.extend_from_slice(b"ee");
+        let (h, meta) = engine.add(&Source::Bytes(Bytes::from(ok)), &dir, true).await.unwrap();
+        assert_eq!(meta.name, "a");
+        engine.remove(&h, true).await;
     }
 
     #[test]
@@ -433,54 +541,10 @@ http://b.com/announce
     }
 
     /// 测速：`PANDA_BT_BENCH="名字=地址;名字=地址" cargo test --release -p panda-app bt_bench -- --ignored --nocapture`
-    /// 每个种子下 45 秒，报拿到元数据的时间、用户数、平均速度。
+    /// 要测监听端口 / uTP（会触发防火墙弹窗）时改用 `PandaDownloader.exe --bt-bench <结果文件>`。
     #[tokio::test(flavor = "multi_thread")]
     #[ignore]
     async fn bt_bench() {
-        let list = std::env::var("PANDA_BT_BENCH").expect("PANDA_BT_BENCH");
-        let secs: u64 = std::env::var("PANDA_BT_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(45);
-        let dir = std::env::temp_dir().join("panda_bt_bench");
-        let _ = std::fs::remove_dir_all(&dir);
-        let net = NetOpts {
-            listen_port: std::env::var("PANDA_BT_PORT").ok().and_then(|p| p.parse().ok()),
-            utp: std::env::var("PANDA_BT_UTP").is_ok(),
-            no_dht: false,
-            trackers: if std::env::var("PANDA_BT_TRACKERS").is_ok() { builtin_trackers() } else { vec![] },
-        };
-        println!("BENCH 选项 {net:?}");
-        let engine = BtEngine::new(dir.clone(), 0, net).await.unwrap();
-        for item in list.split(';').filter(|s| !s.is_empty()) {
-            let (name, loc) = item.split_once('=').unwrap();
-            let src = fetch_source(loc, &ReqCtx::default()).await.unwrap();
-            let t0 = std::time::Instant::now();
-            let added = tokio::time::timeout(std::time::Duration::from_secs(90), engine.add(&src, &dir, false)).await;
-            let Ok(Ok((h, _))) = added else {
-                println!("BENCH {name}: 90 秒内没拿到元数据");
-                continue;
-            };
-            let meta_t = t0.elapsed().as_secs_f64();
-            let t1 = std::time::Instant::now();
-            let mut max_peers = 0;
-            let mut peers_10 = 0;
-            for i in 1..=secs {
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                let l = live_of(&h);
-                max_peers = max_peers.max(l.peers);
-                if i == 10 {
-                    peers_10 = l.peers;
-                }
-                if l.finished {
-                    break;
-                }
-            }
-            let got = live_of(&h).downloaded;
-            let el = t1.elapsed().as_secs_f64();
-            println!(
-                "BENCH {name}: 元数据 {meta_t:.1}s | 10 秒时 {peers_10} 个用户 | 最多 {max_peers} 个 | {:.1} MB / {el:.0}s = 平均 {:.2} MB/s",
-                got as f64 / 1048576.0,
-                got as f64 / 1048576.0 / el
-            );
-            engine.remove(&h, true).await;
-        }
+        bench(&mut |l| println!("{l}")).await;
     }
 }

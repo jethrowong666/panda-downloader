@@ -30,6 +30,18 @@ fn main() {
         }
         return;
     }
+    // 开发用：BT 测速（用正式程序跑，防火墙已放行时不会弹窗）。结果逐行写进文件。
+    if let Some(i) = std::env::args().position(|a| a == "--bt-bench") {
+        let out = std::env::args().nth(i + 1).unwrap_or_else(|| "bt_bench.txt".into());
+        let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().expect("tokio");
+        rt.block_on(bt::bench(&mut |l| {
+            use std::io::Write;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&out) {
+                let _ = writeln!(f, "{l}");
+            }
+        }));
+        return;
+    }
     let hotkey = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyD);
     tauri::Builder::default()
         // 第二次启动时：把参数里的链接交给已运行的实例，并显示主窗口。
