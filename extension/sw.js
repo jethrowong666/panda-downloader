@@ -10,7 +10,10 @@ const MB = 1024 * 1024;
 const VIDEO_SITES = ["bilibili.com", "b23.tv", "douyin.com", "iesdouyin.com", "kuaishou.com", "ixigua.com", "toutiao.com",
   "weibo.com", "xiaohongshu.com", "youtube.com", "youtu.be", "tiktok.com", "twitter.com", "x.com", "vimeo.com",
   "acfun.cn", "v.qq.com", "youku.com", "iqiyi.com", "mgtv.com", "huya.com", "douyu.com", "instagram.com", "facebook.com", "nicovideo.jp",
-  "reddit.com", "redd.it", "xhslink.com", "weibo.cn", "gifshow.com", "twitch.tv", "dailymotion.com"];
+  "reddit.com", "redd.it", "xhslink.com", "weibo.cn", "gifshow.com", "twitch.tv", "dailymotion.com",
+  "fb.watch", "threads.net", "threads.com", "zhihu.com", "haokan.baidu.com", "vimeo.com", "dai.ly", "bsky.app", "linkedin.com",
+  "tumblr.com", "pinterest.com", "pin.it", "vk.com", "rumble.com", "kick.com", "streamable.com", "imgur.com", "9gag.com",
+  "ted.com", "bilibili.tv", "snapchat.com", "soundcloud.com", "bandcamp.com", "mixcloud.com"];
 const FILE_EXT = /\.(zip|rar|7z|tar|gz|tgz|bz2|xz|zst|iso|exe|msi|msix|apk|dmg|pkg|deb|rpm|appimage|mp4|mkv|avi|mov|wmv|flv|webm|m4v|ts|mp3|flac|wav|aac|m4a|ogg|opus|pdf|docx?|xlsx?|pptx?|epub|mobi|torrent|bin|img|jar|whl)(\?|#|$)/i;
 
 const settings = { takeover: true };
@@ -163,6 +166,8 @@ async function downloadTabVideo(tab, srcHint, page, fromContextMenu, direct) {
   // 抖音：直接下载播放器正在放的 mp4（带上来源页和 Cookie）
   if (direct?.url) {
     const name = direct.title.replace(/[\\/:*?"<>|]/g, "_") + ".mp4";
+    // HLS 流（.m3u8）不是单个文件，交给解析器下载并合并
+    if (/\.m3u8(\?|$)/i.test(direct.url)) return sendToApp([{ url: direct.url, video: true }], tab.url);
     return sendToApp([{ url: direct.url, filename: name }], tab.url);
   }
   if (page) return sendToApp([{ url: page, video: true }], tab.url);

@@ -21,10 +21,18 @@
     /xiaohongshu\.com\/(?:explore|discovery\/item|search_result)\/[0-9a-f]{24}/,
     /weibo\.(?:com|cn)\/(?:\d+\/[A-Za-z0-9]{8,10}(?:[?#]|$)|detail\/\w+|status\/\w+|tv\/show\/[\d:]+)/,
     /instagram\.com\/(?:[\w.]+\/)?(?:p|reel|reels|tv)\/[\w-]+/, /reddit\.com\/r\/\w+\/comments\/\w+/, /redd\.it\/\w+/,
+    /facebook\.com\/(?:watch\/?\?(?:.*&)?v=\d+|[^/?#]+\/videos\/(?:[^/?#]+\/)?\d+|reel\/\d+|video\.php\?(?:.*&)?v=\d+|share\/[vr]\/\w+)/, /fb\.watch\/\w+/,
+    /threads\.(?:net|com)\/@[\w.]+\/post\/[\w-]+/, /zhihu\.com\/(?:zvideo|video)\/\d+/, /haokan\.baidu\.com\/v\?(?:.*&)?vid=\d+/,
+    /vimeo\.com\/\d+/, /twitch\.tv\/(?:videos\/\d+|[\w]+\/clip\/[\w-]+)/, /clips\.twitch\.tv\/[\w-]+/, /dailymotion\.com\/video\/\w+/, /dai\.ly\/\w+/,
+    /acfun\.cn\/v\/ac\d+/, /bsky\.app\/profile\/[^/]+\/post\/\w+/, /linkedin\.com\/(?:posts|feed\/update)\//, /tumblr\.com\/[^/]+\/\d+/,
+    /pinterest\.[a-z.]+\/pin\/\d+/, /pin\.it\/\w+/, /vk\.com\/(?:video|clip)-?\d+_\d+/, /rumble\.com\/v\w+/, /kick\.com\/[^/]+\/clips?\//,
+    /streamable\.com\/\w+/, /imgur\.com\/(?:gallery\/|a\/)?\w+/, /9gag\.com\/gag\/\w+/, /ted\.com\/talks\/\w+/, /nicovideo\.jp\/watch\/\w+/,
+    /huya\.com\/video\/play\/\d+/, /v\.douyu\.com\/show\/\w+/, /bilibili\.tv\/[^/]+\/video\/\d+/, /snapchat\.com\/spotlight\/\w+/,
   ];
   const isVideoPage = (u) => VIDEO_PAGE.some((r) => r.test(u));
   const LINK_SEL = 'a[href*="/watch?v="], a[href*="/shorts/"], a[href*="/video/"], a[href*="modal_id="], a[href*="/status/"], a[href*="/explore/"], ' +
-    'a[href*="/discovery/item/"], a[href*="/p/"], a[href*="/reel/"], a[href*="/comments/"], a[href*="weibo.com/"], a[href*="/detail/"], a[href*="/short-video/"]';
+    'a[href*="/discovery/item/"], a[href*="/p/"], a[href*="/reel/"], a[href*="/comments/"], a[href*="weibo.com/"], a[href*="/detail/"], a[href*="/short-video/"], ' +
+    'a[href*="/videos/"], a[href*="/watch/"], a[href*="/post/"], a[href*="/zvideo/"], a[href*="vid="], a[href*="/pin/"]';
 
   // 最近一次鼠标经过的视频链接（YouTube 首页的预览播放器不在卡片里面，要靠它）
   let lastLink = null, lastLinkAt = 0;
@@ -59,8 +67,13 @@
     : /(^|\.)weibo\.(com|cn)$/.test(H) ? "weibo"
     : /(^|\.)tiktok\.com$/.test(H) ? "tiktok"
     : /(^|\.)instagram\.com$/.test(H) ? "instagram"
+    : /(^|\.)threads\.(net|com)$/.test(H) ? "threads"
+    : /(^|\.)(facebook\.com|fb\.watch)$/.test(H) ? "facebook"
+    : /(^|\.)zhihu\.com$/.test(H) ? "zhihu"
+    : /(^|\.)haokan\.baidu\.com$/.test(H) ? "haokan"
+    : /(^|\.)vimeo\.com$/.test(H) ? "vimeo"
     : /(^|\.)(x|twitter)\.com$/.test(H) ? "twitter" : "";
-  const SITE_NAME = { douyin: "抖音", kuaishou: "快手", xigua: "西瓜视频", xhs: "小红书", weibo: "微博", tiktok: "TikTok", instagram: "Instagram", twitter: "X" };
+  const SITE_NAME = { douyin: "抖音", kuaishou: "快手", xigua: "西瓜视频", xhs: "小红书", weibo: "微博", tiktok: "TikTok", instagram: "Instagram", twitter: "X", threads: "Threads", facebook: "Facebook", zhihu: "知乎", haokan: "好看视频", vimeo: "Vimeo" };
 
   function askHook(id) {
     return new Promise((resolve) => {
@@ -91,6 +104,11 @@
     if (HOOK_SITE === "tiktok") return (page.match(/\/video\/(\d+)/) || [])[1] || null;
     if (HOOK_SITE === "instagram") return (page.match(/\/(?:p|reel|reels|tv)\/([\w-]+)/) || [])[1] || null;
     if (HOOK_SITE === "twitter") return (page.match(/\/status\/(\d+)/) || [])[1] || null;
+    if (HOOK_SITE === "threads") return (page.match(/\/post\/([\w-]+)/) || [])[1] || null;
+    if (HOOK_SITE === "facebook") return (page.match(/(?:[?&]v=|\/videos\/(?:[^/?#]+\/)?|\/reel\/)(\d{6,})/) || [])[1] || null;
+    if (HOOK_SITE === "zhihu") return (page.match(/\/(?:zvideo|video)\/(\d+)/) || [])[1] || null;
+    if (HOOK_SITE === "haokan") return (page.match(/[?&]vid=(\d+)/) || [])[1] || null;
+    if (HOOK_SITE === "vimeo") return (page.match(/vimeo\.com\/(?:.*\/)?(\d{5,})/) || [])[1] || null;
     return null;
   }
 

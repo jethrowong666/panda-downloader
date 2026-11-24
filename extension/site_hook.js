@@ -1,5 +1,5 @@
 // 熊猫下载器 · 网页钩子（运行在页面自己的环境里）
-// 启用网站：抖音、快手、西瓜视频、小红书、微博、TikTok、Instagram、X(Twitter)
+// 启用网站：抖音、快手、西瓜视频、小红书、微博、知乎、好看视频、TikTok、Instagram、Threads、Facebook、X(Twitter)
 // 这些网站的视频信息接口大多要签名或登录，只有网页自己能调。这里在网页收到接口数据时顺手记下
 // 每个视频的播放地址、标题、作者，扩展点"熊猫下载"时直接用。
 (() => {
@@ -15,7 +15,11 @@
     : /xiaohongshu\.com$/.test(host) ? "xhs"
     : /weibo\.(com|cn)$/.test(host) ? "weibo"
     : /tiktok\.com$/.test(host) ? "tiktok"
-    : /instagram\.com$/.test(host) ? "instagram"
+    : /instagram\.com$|threads\.(net|com)$/.test(host) ? "instagram"
+    : /facebook\.com$|fb\.watch$/.test(host) ? "facebook"
+    : /zhihu\.com$/.test(host) ? "zhihu"
+    : /haokan\.baidu\.com$/.test(host) ? "haokan"
+    : /vimeo\.com$/.test(host) ? "vimeo"
     : /(^|\.)(x|twitter)\.com$/.test(host) ? "twitter"
     : "";
 
@@ -166,6 +170,48 @@
     }
   }
 
+  // ── Facebook：Video 对象（browser_native_* 是带声音的完整 mp4）──
+  function facebook(o) {
+    const f = o.videoDeliveryLegacyFields && typeof o.videoDeliveryLegacyFields === "object" ? { ...o.videoDeliveryLegacyFields, ...o } : o;
+    const urls = [f.browser_native_hd_url, f.playable_url_quality_hd, f.hd_src, f.browser_native_sd_url, f.playable_url, f.sd_src].filter((u) => typeof u === "string");
+    if (!urls.length) return;
+    const id = o.videoId || o.video_id || o.id;
+    const title = o.title?.text || o.savable_title?.text || o.name || o.message?.text || "";
+    save([id, o.post_id], urls, title, o.owner?.name || o.video_owner?.name);
+  }
+
+  // ── 知乎：playlist.{FHD,HD,SD,LD}.play_url，zvideo 外面还包一层 ──
+  function zhihu(o) {
+    const pl = o.playlist || o.video?.playlist || o.playlist_v2 || o.video?.playlist_v2;
+    if (!pl || typeof pl !== "object") return;
+    const order = ["FHD", "fhd", "HD", "hd", "SD", "sd", "LD", "ld"];
+    const urls = order.map((k) => pl[k]?.play_url || pl[k]?.url).filter(Boolean);
+    if (!urls.length) for (const k in pl) if (pl[k]?.play_url) urls.push(pl[k].play_url);
+    save([o.id, o.zvideo_id, o.video_id, o.video?.video_id], urls, o.title || o.video?.title, o.author?.name);
+  }
+
+  // ── 好看视频：clarityUrl 多清晰度 ──
+  function haokan(o) {
+    if (!Array.isArray(o.clarityUrl) || !o.clarityUrl.length) return;
+    const rank = { "1080p": 5, sc: 4, "720p": 3, hd: 2, sd: 1 };
+    const list = o.clarityUrl.filter((x) => x?.url).sort((a, b) => (rank[b.key] || 0) - (rank[a.key] || 0));
+    save([o.vid, o.id], list.map((x) => x.url).concat(o.playurl ? [o.playurl] : []), o.title, o.author || o.author_name || o.mth?.author_name);
+  }
+
+  // ── Vimeo：播放器配置 request.files，优先 progressive（带声音的 mp4），没有就用 HLS ──
+  function vimeo(o) {
+    const files = o.request?.files;
+    const vid = o.video?.id;
+    if (!files || !vid) return;
+    const urls = (files.progressive || []).filter((p) => p?.url).sort((a, b) => (b.height || 0) - (a.height || 0)).map((p) => p.url);
+    if (!urls.length && files.hls?.cdns) {
+      const cdns = files.hls.cdns;
+      const def = cdns[files.hls.default_cdn] || Object.values(cdns)[0];
+      if (def?.url) urls.push(def.url);
+    }
+    save(vid, urls, o.video.title, o.video.owner?.name);
+  }
+
   function harvest(obj, depth = 0, author = "", fromGlobals = false) {
     if (!obj || typeof obj !== "object" || depth > 14) return;
     if (Array.isArray(obj)) { for (const x of obj) harvest(x, depth + 1, author, fromGlobals); return; }
@@ -178,6 +224,10 @@
       else if (SITE === "tiktok") tiktok(obj);
       else if (SITE === "instagram") instagram(obj);
       else if (SITE === "twitter") twitter(obj);
+      else if (SITE === "facebook") facebook(obj);
+      else if (SITE === "zhihu") zhihu(obj);
+      else if (SITE === "haokan") haokan(obj);
+      else if (SITE === "vimeo") vimeo(obj);
     } catch {}
     for (const k in obj) {
       let v;
@@ -187,12 +237,16 @@
   }
 
   // 接口返回：JSON，也有 Instagram 那样标成 text/javascript、Facebook 系前面加 for (;;); 的
-  const maybeJson = (ct) => /json|javascript|text\/plain/i.test(ct || "");
+  const maybeJson = (ct) => /json|javascript|text\/plain/i.test(ct || "") || (SITE === "facebook" && /text\/html/i.test(ct || ""));
   function parseLoose(text) {
     if (!text || text.length > 20e6) return null;
     const t = text.replace(/^\s*for\s*\(;;\);/, "").trim();
     if (!/^[\[{]/.test(t)) return null;
-    try { return JSON.parse(t); } catch { return null; }
+    try { return JSON.parse(t); } catch {}
+    // 一次返回多行 JSON（Facebook 等）
+    const parts = [];
+    for (const line of t.split(/\n(?=[\[{])/)) { try { parts.push(JSON.parse(line)); } catch {} }
+    return parts.length ? parts : null;
   }
 
   // fetch
@@ -222,10 +276,10 @@
 
   // 页面一开始就带的数据，被问到时再扫一遍：全局变量，以及 TikTok 那样放在 <script> 里的 JSON
   function scanGlobals() {
-    for (const k of ["_SSR_HYDRATED_DATA", "__APOLLO_STATE__", "__INITIAL_STATE__", "INIT_STATE", "_ROUTER_DATA", "RENDER_DATA", "SIGI_STATE", "$render_data"]) {
+    for (const k of ["_SSR_HYDRATED_DATA", "__APOLLO_STATE__", "__INITIAL_STATE__", "__INITIAL_DATA__", "__PRELOADED_STATE__", "playerConfig", "INIT_STATE", "_ROUTER_DATA", "RENDER_DATA", "SIGI_STATE", "$render_data"]) {
       try { if (window[k] && typeof window[k] === "object") harvest(window[k], 0, "", true); } catch {}
     }
-    for (const id of ["__UNIVERSAL_DATA_FOR_REHYDRATION__", "SIGI_STATE", "__NEXT_DATA__", "RENDER_DATA"]) {
+    for (const id of ["__UNIVERSAL_DATA_FOR_REHYDRATION__", "SIGI_STATE", "__NEXT_DATA__", "RENDER_DATA", "js-initialData"]) {
       const el = document.getElementById(id);
       if (!el) continue;
       let t = el.textContent || "";
@@ -235,7 +289,7 @@
     // Instagram、X 等把首屏数据放在 type="application/json" 的 <script> 里
     for (const el of document.querySelectorAll('script[type="application/json"]')) {
       const t = el.textContent || "";
-      if (t.length > 200 && /video_versions|video_info|play_addr|masterUrl|media_info/.test(t)) harvest(parseLoose(t), 0, "", true);
+      if (t.length > 200 && /video_versions|video_info|play_addr|masterUrl|media_info|browser_native|playable_url|play_url|clarityUrl/.test(t)) harvest(parseLoose(t), 0, "", true);
     }
   }
 

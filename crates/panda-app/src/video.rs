@@ -14,7 +14,10 @@ const VIDEO_HOSTS: &[&str] = &[
     "weibo.com", "weibo.cn", "xiaohongshu.com", "xhslink.com", "youtube.com", "youtu.be", "tiktok.com",
     "twitter.com", "x.com", "vimeo.com", "dailymotion.com", "twitch.tv", "acfun.cn", "zhihu.com/zvideo",
     "v.qq.com", "youku.com", "iqiyi.com", "mgtv.com", "huya.com", "douyu.com", "instagram.com", "facebook.com",
-    "reddit.com", "nicovideo.jp", "pornhub.com",
+    "reddit.com", "redd.it", "nicovideo.jp", "pornhub.com", "fb.watch", "threads.net", "threads.com", "zhihu.com/video",
+    "haokan.baidu.com", "dai.ly", "bsky.app", "linkedin.com/posts", "linkedin.com/feed/update", "tumblr.com", "pinterest.com", "pin.it",
+    "vk.com", "rumble.com", "kick.com", "streamable.com", "imgur.com", "9gag.com", "ted.com/talks", "bilibili.tv",
+    "snapchat.com/spotlight", "soundcloud.com", "bandcamp.com", "mixcloud.com", "clips.twitch.tv", "gifshow.com",
 ];
 
 pub fn is_video_page(url: &str) -> bool {
@@ -39,6 +42,7 @@ const DIRECT_HOSTS: &[&str] = &[
     "snssdk.com", "amemv.com", "kuaishou.com", "kwimgs.com", "yximgs.com", "ixigua.com", "toutiao.com",
     "weibo.com", "weibo.cn", "sinaimg.cn", "xiaohongshu.com", "xhscdn.com", "xhslink.com", "acfun.cn",
     "qq.com", "gtimg.com", "youku.com", "iqiyi.com", "mgtv.com", "huya.com", "douyu.com", "zhihu.com", "zhimg.com",
+    "haokan.baidu.com", "baidu.com", "bdstatic.com", "bcebos.com", "gifshow.com", "kwaicdn.com", "ixigua.com", "pstatp.com",
 ];
 
 pub fn prefers_direct(url: &str) -> bool {
@@ -719,6 +723,12 @@ mod tests {
         assert!(is_video_page("https://v.douyin.com/iRNBho6u/"));
         assert!(is_video_page("https://youtu.be/dQw4w9WgXcQ"));
         assert!(is_video_page("https://www.zhihu.com/zvideo/123"));
+        assert!(is_video_page("https://www.threads.net/@user/post/C1abc"));
+        assert!(is_video_page("https://haokan.baidu.com/v?vid=123"));
+        assert!(is_video_page("https://vimeo.com/76979871"));
+        assert!(is_video_page("https://www.linkedin.com/posts/abc-123"));
+        assert!(!is_video_page("https://www.linkedin.com/in/someone"));
+        assert!(prefers_direct("https://vd3.bdstatic.com/mda-abc/1080p.mp4"));
         assert!(!is_video_page("https://www.zhihu.com/question/1"));
         assert!(!is_video_page("https://example.com/a.mp4"));
         assert!(!is_video_page("https://notbilibili.com/x"));

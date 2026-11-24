@@ -3,7 +3,7 @@
 全场景下载器：一个工具搞定 HTTP、BT/磁力、PT、电驴 ed2k、迅雷/快车/旋风链接、m3u8 流媒体……
 开源（GPL-3.0-or-later），无广告。Panda 系列产品。
 
-> 当前版本 v0.2.6（开发中）：HTTP 多线程下载 + 断点续传、桌面程序、浏览器扩展、视频网站下载。BT、ed2k、网盘等见路线图。
+> 当前版本 v0.2.7（开发中）：HTTP 多线程下载 + 断点续传、桌面程序、浏览器扩展、视频网站下载。BT、ed2k、网盘等见路线图。
 >
 > **下载安装包**：见 [Releases](../../releases)。安装包已自带 yt-dlp、ffmpeg、Deno，不需要另外安装任何东西。
 
@@ -22,8 +22,10 @@ cargo build --release -p panda-app
 - 关闭主窗口会缩到托盘，下载继续；重启后自动接着下
 - **视频网站**：粘贴 B 站、YouTube 等视频页网址，选清晰度后下载，音视频自动合并成一个文件；B 站会自动挑最快的 CDN 节点；
   国内网站自动直连（开着代理也不会被当成境外访问）；YouTube 先不带登录解析，必要时再用浏览器的登录状态
-- **抖音、快手、西瓜视频、小红书、微博、TikTok、Instagram、X、Reddit**：在浏览器里打开视频，点视频右上角的「熊猫下载」，
+- **抖音、快手、西瓜视频、小红书、微博、知乎、好看视频、TikTok、Instagram、Threads、Facebook、X、Reddit、Vimeo**：在浏览器里打开视频，点视频右上角的「熊猫下载」，
   扩展直接从网页已经加载的数据里拿视频地址（这些网站的接口要签名或登录，后台解析不了）；拿不到时自动交给解析器
+- 解析器直接支持（粘贴网址即可）：B 站、YouTube、Dailymotion、Pinterest、TED、AcFun、Streamable、Twitch、Bluesky、LinkedIn、Tumblr、VK、Rumble、Kick、
+  Imgur、9GAG、Niconico、SoundCloud、Bandcamp、Mixcloud、虎牙、斗鱼等上千个网站
 - 不支持有 DRM 版权加密的视频（Netflix、各平台付费会员内容等）
 - 从源码运行视频功能需要把 `yt-dlp.exe`、`ffmpeg.exe`、`deno.exe` 放进项目的 `tools\` 文件夹
 
