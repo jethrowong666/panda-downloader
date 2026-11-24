@@ -1,0 +1,15 @@
+/target
+# 外部工具（yt-dlp、ffmpeg）体积大，打包时再放进安装包
+/tools/*.exe
+*.part
+*.part.json
+PROJECT.md
+# 扩展开发私钥（固定扩展 ID 用），不要提交
+/extension-key.pem
+# 安装包和打包临时文件
+/dist
+# 图标设计过程稿（AI 候选图、早期方案），不进仓库
+/crates/panda-app/icons/ai/
+/crates/panda-app/icons/concepts/
+/crates/panda-app/icons/logo.svg
+/crates/panda-app/icons/preview.png

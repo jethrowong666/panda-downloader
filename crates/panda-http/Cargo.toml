@@ -1,0 +1,22 @@
+[package]
+name = "panda-http"
+description = "HTTP/HTTPS multi-connection download engine with dynamic segment splitting for Panda Downloader"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+reqwest.workspace = true
+tokio.workspace = true
+futures-util.workspace = true
+tokio-util = "0.7"
+bytes.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+percent-encoding.workspace = true
+url.workspace = true
+encoding_rs.workspace = true
+
+[dev-dependencies]
+axum = "0.8"

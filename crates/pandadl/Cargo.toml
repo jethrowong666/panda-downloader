@@ -1,0 +1,22 @@
+[package]
+name = "pandadl"
+description = "Panda Downloader command-line interface"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "pandadl"
+path = "src/main.rs"
+
+[dependencies]
+panda-link = { path = "../panda-link" }
+panda-http = { path = "../panda-http" }
+tokio.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+axum = "0.8"
+futures-util.workspace = true

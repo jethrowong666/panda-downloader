@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>熊猫下载器</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body.popup { padding: 8px; }
+  .head { height: 42px; padding: 0 6px 0 12px; gap: 8px; }
+  .total { font-size: 14px; font-weight: 600; }
+  .count { font-size: 12px; color: var(--text-2); }
+  .task { position: relative; padding: 9px 12px 10px; border-top: 1px solid var(--line); }
+  .task .top { display: flex; align-items: center; gap: 8px; height: 22px; }
+  .task .pct { font-size: 12px; color: var(--text-2); flex: none; }
+  .task .ops { display: none; gap: 0; margin-right: -6px; }
+  .task:hover .ops { display: flex; }
+  .task:hover .pct { display: none; }
+  .task .bar { margin: 6px 0 6px; }
+  .stats { display: flex; align-items: center; gap: 0; height: 16px; font-size: 11px; color: var(--text-2); }
+  .stats .err { color: var(--danger); }
+  .more { display: flex; align-items: center; justify-content: center; height: 34px; font-size: 12px; color: var(--accent-text); border-top: 1px solid var(--line); cursor: pointer; }
+  .more:hover { background: var(--bg-hover); }
+  .drop { display: none; align-items: center; justify-content: center; gap: 6px; height: 40px; margin: 0 10px 10px; border: 1.5px dashed var(--accent); border-radius: var(--radius); font-size: 12px; color: var(--accent-text); background: var(--accent-soft); }
+  .drop svg { width: 16px; height: 16px; }
+  body.dragging .drop { display: flex; }
+  .pill { display: none; height: 36px; padding: 0 14px 0 10px; gap: 8px; cursor: pointer; }
+  .pill .total { font-size: 13px; }
+  body.collapsed .pill { display: flex; }
+  body.collapsed .full { display: none; }
+  body.collapsed .card { border-radius: 999px; }
+</style>
+</head>
+<body class="popup">
+<div class="card">
+  <div class="pill row" data-act="expand" title="展开">
+    <img class="logo" src="logo.png" alt="" style="width:18px;height:18px">
+    <span class="total num" id="pillText"></span>
+  </div>
+  <div class="full">
+    <div class="head row" data-tauri-drag-region id="head">
+      <img class="logo" src="logo.png" alt="" data-tauri-drag-region>
+      <span class="total num" id="total" data-tauri-drag-region></span>
+      <span class="count grow num" id="count" data-tauri-drag-region></span>
+      <button class="icon" data-act="main" title="打开主窗口" id="mainBtn"></button>
+      <button class="icon" data-act="collapse" title="收起" id="colBtn"></button>
+    </div>
+    <div id="list"></div>
+    <div class="drop" id="drop"></div>
+  </div>
+</div>
+<script src="common.js"></script>
+<script src="float.js"></script>
+</body>
+</html>

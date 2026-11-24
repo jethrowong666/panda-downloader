@@ -1,0 +1,16 @@
+[package]
+name = "panda-host"
+description = "Native Messaging host bridging the Panda Downloader browser extension to the app"
+version = "0.2.5"
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "panda-host"
+path = "src/main.rs"
+
+[dependencies]
+serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Console"] }

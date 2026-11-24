@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>熊猫下载器</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  body { display: flex; background: var(--bg); }
+
+  /* 侧边栏 */
+  aside { width: 208px; flex: none; display: flex; flex-direction: column; background: var(--bg-app); border-right: 1px solid var(--line); padding: 16px 12px; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 20px; }
+  .brand img { width: 30px; height: 30px; border-radius: 8px; }
+  .brand b { font-size: 15px; font-weight: 600; display: block; line-height: 1.2; }
+  .brand span { font-size: 11px; color: var(--text-3); }
+  .nav { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 10px; border-radius: var(--radius); color: var(--text-2); cursor: pointer; margin-bottom: 2px; }
+  .nav svg { width: 18px; height: 18px; flex: none; }
+  .nav:hover { background: var(--bg-hover); color: var(--text); }
+  .nav.on { background: var(--bg); color: var(--text); font-weight: 500; box-shadow: 0 1px 2px rgba(15, 20, 30, 0.06), 0 0 0 1px var(--line); }
+  .nav.on svg { color: var(--accent); }
+  .nav .n { margin-left: auto; font-size: 11px; color: var(--text-3); font-weight: 500; }
+  .nav.on .n { color: var(--text-2); }
+  .side-foot { margin-top: auto; padding: 12px 10px 2px; border-top: 1px solid var(--line); }
+  .side-foot .sp { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+
+  /* 内容区 */
+  section { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .top { display: flex; align-items: center; gap: 16px; height: 64px; padding: 0 24px; flex: none; }
+  .top h2 { font-size: 20px; font-weight: 600; margin: 0; white-space: nowrap; }
+  .add { flex: 1; display: flex; gap: 8px; max-width: 520px; margin-left: auto; }
+  .add .in { position: relative; flex: 1; }
+  .add .in svg { position: absolute; left: 10px; top: 8px; width: 16px; height: 16px; color: var(--text-3); pointer-events: none; }
+  .add input { padding-left: 34px; }
+  .bar-tools { display: flex; align-items: center; gap: 8px; padding: 0 24px 10px; flex: none; min-height: 32px; }
+  .bar-tools .sum { font-size: 12px; color: var(--text-2); }
+  main { flex: 1; overflow-y: auto; padding: 0 16px 24px 24px; scrollbar-gutter: stable; }
+
+  /* 列表 */
+  .list { border: 1px solid var(--line); border-radius: var(--card-radius); overflow: hidden; }
+  .t { display: grid; grid-template-columns: 36px minmax(0, 1fr) 200px 104px; gap: 14px; align-items: center; height: 64px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--line); background: var(--bg); }
+  .t:last-child { border-bottom: none; }
+  .t:hover { background: var(--bg-hover); }
+  .t .info { min-width: 0; }
+  .t .sub { font-size: 12px; color: var(--text-2); margin-top: 2px; display: flex; align-items: center; min-width: 0; white-space: nowrap; }
+  .t .sub .err { color: var(--danger); overflow: hidden; text-overflow: ellipsis; }
+  .t .prog .bar { margin-bottom: 5px; }
+  .t .prog .l { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); }
+  .t .ops { display: flex; justify-content: flex-end; gap: 2px; opacity: 0; transition: opacity .12s; }
+  .t:hover .ops, .t .ops.show { opacity: 1; }
+  .t.h { grid-template-columns: 36px minmax(0, 1fr) minmax(0, 0.8fr) 132px; }
+  .t .where { font-size: 12px; color: var(--text-3); overflow: hidden; white-space: nowrap; }
+
+  .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; height: calc(100% - 40px); min-height: 280px; color: var(--text-2); }
+  .empty img { width: 72px; height: 72px; border-radius: 18px; margin-bottom: 18px; opacity: .92; }
+  .empty b { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .empty p { margin: 0 0 4px; font-size: 13px; }
+
+  /* 设置 */
+  .group { margin: 0 0 20px; max-width: 720px; }
+  .group h3 { font-size: 12px; font-weight: 600; color: var(--text-2); margin: 0 0 8px 2px; letter-spacing: .02em; }
+  .group .box { border: 1px solid var(--line); border-radius: var(--card-radius); overflow: hidden; }
+  .s { display: flex; align-items: center; gap: 24px; min-height: 64px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .s:last-child { border-bottom: none; }
+  .s .txt { flex: 1; min-width: 0; }
+  .s .txt b { display: block; font-size: 14px; font-weight: 500; }
+  .s .txt small { display: block; font-size: 12px; color: var(--text-2); margin-top: 2px; }
+  .s .ctl { flex: none; display: flex; align-items: center; gap: 8px; }
+  .s .path { width: 320px; }
+  .unit { font-size: 12px; color: var(--text-2); }
+  .switch { width: 40px; height: 22px; border-radius: 11px; background: var(--line-2); position: relative; cursor: pointer; flex: none; transition: background .15s; }
+  .switch::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .switch.on { background: var(--accent); }
+  .switch.on::after { left: 21px; }
+  .about { font-size: 12px; color: var(--text-3); margin: 4px 2px 0; }
+</style>
+</head>
+<body>
+<aside>
+  <div class="brand"><img src="logo.png" alt=""><div><b>熊猫下载器</b><span>Panda Downloader</span></div></div>
+  <div class="nav on" data-act="tab" data-tab="active" id="navActive"></div>
+  <div class="nav" data-act="tab" data-tab="done" id="navDone"></div>
+  <div class="nav" data-act="tab" data-tab="settings" id="navSet"></div>
+  <div class="side-foot">
+    <div class="tiny faint">当前总速度</div>
+    <div class="sp num" id="sideSpeed">0 B/s</div>
+  </div>
+</aside>
+<section>
+  <div class="top">
+    <h2 id="pageTitle">正在下载</h2>
+    <div class="add" id="addBox">
+      <div class="in"><span id="linkIcon"></span><input type="text" id="link" placeholder="粘贴下载链接，按回车开始" spellcheck="false"></div>
+      <button class="primary" data-act="add" id="addBtn"></button>
+    </div>
+  </div>
+  <div class="bar-tools" id="tools"></div>
+  <main id="main"></main>
+</section>
+<script src="common.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
