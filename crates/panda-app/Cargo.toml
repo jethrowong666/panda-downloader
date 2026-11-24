@@ -1,7 +1,7 @@
 [package]
 name = "panda-app"
 description = "Panda Downloader desktop app"
-version = "0.2.5"
+version = "0.2.6"
 edition.workspace = true
 license.workspace = true
 

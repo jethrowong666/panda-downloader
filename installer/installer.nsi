@@ -83,6 +83,8 @@ Section "主程序" SecMain
   File "${STAGING}\tools\yt-dlp.exe"
   File "${STAGING}\tools\ffmpeg.exe"
   File "${STAGING}\tools\deno.exe"
+  ; 先清掉旧版本的扩展文件，免得留下新版已经不用的脚本
+  RMDir /r "$INSTDIR\extension"
   SetOutPath "$INSTDIR\extension"
   File /r "${STAGING}\extension\*"
   SetOutPath "$INSTDIR"

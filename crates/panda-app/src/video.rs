@@ -389,8 +389,29 @@ fn friendly_error(stderr: &str) -> String {
 fn friendly_text(line: &str) -> String {
     let low = line.to_ascii_lowercase();
     // 抖音、快手、西瓜：接口要签名，只能由浏览器扩展从网页里拿视频地址
-    let browser_site = [("douyin", "抖音视频"), ("kuaishou", "快手视频"), ("ixigua", "西瓜视频")].into_iter().find(|(k, _)| low.contains(k));
-    if let Some((_, name)) = browser_site.filter(|_| low.contains("unsupported url") || low.contains("cookies")) {
+    let browser_site = [
+        ("douyin", "抖音视频"),
+        ("kuaishou", "快手视频"),
+        ("ixigua", "西瓜视频"),
+        ("xiaohongshu", "小红书视频"),
+        ("weibo", "微博视频"),
+        ("tiktok", "TikTok 视频"),
+        ("instagram", "Instagram 视频"),
+        ("twitter", "X（推特）视频"),
+        ("x.com", "X（推特）视频"),
+        ("reddit", "Reddit 视频"),
+    ]
+    .into_iter()
+    .find(|(k, _)| low.contains(k));
+    let needs_browser = low.contains("unsupported url")
+        || low.contains("cookies")
+        || low.contains("login")
+        || low.contains("log in")
+        || low.contains("rate-limit")
+        || low.contains("rate limit")
+        || low.contains("authentication")
+        || low.contains("ip address is blocked");
+    if let Some((_, name)) = browser_site.filter(|_| needs_browser) {
         format!("{name}要通过浏览器下载：在浏览器里打开这个视频（装好熊猫下载器扩展后先刷新页面），点视频右上角的「熊猫下载」")
     } else if low.contains("unsupported url") {
         "这个网址里没有找到视频".into()
@@ -726,6 +747,8 @@ mod tests {
         assert!(dy.starts_with("抖音视频要通过浏览器下载"), "{dy}");
         assert!(friendly_error("ERROR: Unsupported URL: https://www.kuaishou.com/short-video/3xabc").starts_with("快手视频要通过浏览器下载"));
         assert!(friendly_error("ERROR: [Ixigua] 7012: Cookies (not necessarily logged in) are needed").starts_with("西瓜视频要通过浏览器下载"));
+        assert!(friendly_error("ERROR: [Instagram] C1a: Requested content is not available, rate-limit reached or login required").starts_with("Instagram 视频要通过浏览器下载"));
+        assert!(friendly_error("ERROR: [XiaoHongShu] 65ab: Unable to extract; please pass --cookies").starts_with("小红书视频要通过浏览器下载"));
         assert!(friendly_error("ERROR: [x] 1: Unable to download JSON metadata: HTTP Error 404: Not Found").starts_with("视频不存在"));
         assert!(!friendly_error("ERROR: [BiliBili] BV1404xx: Some new problem").starts_with("视频不存在"));
     }

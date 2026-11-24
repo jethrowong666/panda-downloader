@@ -17,10 +17,14 @@
     /bilibili\.com\/video\/(?:BV\w{10}|av\d+)/i, /bilibili\.com\/bangumi\/play\//,
     /douyin\.com\/video\/\d{15,}/, /[?&]modal_id=\d{15,}/,
     /ixigua\.com\/\d{15,}/, /kuaishou\.com\/short-video\//, /xiaohongshu\.com\/(?:explore|discovery\/item)\/\w+/,
-    /(?:twitter|x)\.com\/[^/]+\/status\/\d+/, /vimeo\.com\/\d+/, /tiktok\.com\/@[^/]+\/video\/\d+/,
+    /(?:twitter|x)\.com\/[^/]+\/status\/\d+/, /vimeo\.com\/\d+/, /tiktok\.com\/@[^/]*\/video\/\d+/,
+    /xiaohongshu\.com\/(?:explore|discovery\/item|search_result)\/[0-9a-f]{24}/,
+    /weibo\.(?:com|cn)\/(?:\d+\/[A-Za-z0-9]{8,10}(?:[?#]|$)|detail\/\w+|status\/\w+|tv\/show\/[\d:]+)/,
+    /instagram\.com\/(?:[\w.]+\/)?(?:p|reel|reels|tv)\/[\w-]+/, /reddit\.com\/r\/\w+\/comments\/\w+/, /redd\.it\/\w+/,
   ];
   const isVideoPage = (u) => VIDEO_PAGE.some((r) => r.test(u));
-  const LINK_SEL = 'a[href*="/watch?v="], a[href*="/shorts/"], a[href*="/video/"], a[href*="modal_id="], a[href*="/status/"], a[href*="/explore/"]';
+  const LINK_SEL = 'a[href*="/watch?v="], a[href*="/shorts/"], a[href*="/video/"], a[href*="modal_id="], a[href*="/status/"], a[href*="/explore/"], ' +
+    'a[href*="/discovery/item/"], a[href*="/p/"], a[href*="/reel/"], a[href*="/comments/"], a[href*="weibo.com/"], a[href*="/detail/"], a[href*="/short-video/"]';
 
   // 最近一次鼠标经过的视频链接（YouTube 首页的预览播放器不在卡片里面，要靠它）
   let lastLink = null, lastLinkAt = 0;
@@ -45,11 +49,18 @@
     return null;
   }
 
-  // 抖音、快手、西瓜：视频信息接口要签名，后台解析不了。网页自己拿到的数据由 site_hook.js 记下，这里按视频编号去取。
-  const HOOK_SITE = /(^|\.)douyin\.com$/.test(location.hostname) ? "douyin"
-    : /(^|\.)(kuaishou\.com|gifshow\.com)$/.test(location.hostname) ? "kuaishou"
-    : /(^|\.)ixigua\.com$/.test(location.hostname) ? "xigua" : "";
-  const SITE_NAME = { douyin: "抖音", kuaishou: "快手", xigua: "西瓜视频" };
+  // 这些网站的视频信息接口要签名或登录，后台解析不了。网页自己拿到的数据由 site_hook.js 记下，这里按视频编号去取。
+  // （B 站、Reddit 的音视频是分开的，网页里没有完整 mp4，走「视频页 + 浏览器登录状态 → yt-dlp」）
+  const H = location.hostname;
+  const HOOK_SITE = /(^|\.)douyin\.com$/.test(H) ? "douyin"
+    : /(^|\.)(kuaishou\.com|gifshow\.com)$/.test(H) ? "kuaishou"
+    : /(^|\.)ixigua\.com$/.test(H) ? "xigua"
+    : /(^|\.)xiaohongshu\.com$/.test(H) ? "xhs"
+    : /(^|\.)weibo\.(com|cn)$/.test(H) ? "weibo"
+    : /(^|\.)tiktok\.com$/.test(H) ? "tiktok"
+    : /(^|\.)instagram\.com$/.test(H) ? "instagram"
+    : /(^|\.)(x|twitter)\.com$/.test(H) ? "twitter" : "";
+  const SITE_NAME = { douyin: "抖音", kuaishou: "快手", xigua: "西瓜视频", xhs: "小红书", weibo: "微博", tiktok: "TikTok", instagram: "Instagram", twitter: "X" };
 
   function askHook(id) {
     return new Promise((resolve) => {
@@ -75,11 +86,36 @@
     const page = pageFor(v) || location.href;
     if (HOOK_SITE === "kuaishou") return (page.match(/\/(?:short-video|photo|fw\/photo)\/([\w-]+)/) || [])[1] || null;
     if (HOOK_SITE === "xigua") return (page.match(/ixigua\.com\/(?:video\/)?(\d{15,})/) || [])[1] || null;
+    if (HOOK_SITE === "xhs") return (page.match(/\/(?:explore|discovery\/item|search_result)\/([0-9a-f]{24})/) || [])[1] || null;
+    if (HOOK_SITE === "weibo") return (page.match(/weibo\.(?:com|cn)\/(?:\d+\/([A-Za-z0-9]{8,10})|detail\/(\w+)|status\/(\w+)|tv\/show\/([\d:]+))/) || []).slice(1).find(Boolean) || null;
+    if (HOOK_SITE === "tiktok") return (page.match(/\/video\/(\d+)/) || [])[1] || null;
+    if (HOOK_SITE === "instagram") return (page.match(/\/(?:p|reel|reels|tv)\/([\w-]+)/) || [])[1] || null;
+    if (HOOK_SITE === "twitter") return (page.match(/\/status\/(\d+)/) || [])[1] || null;
+    return null;
+  }
+
+  // Reddit：新版播放器元素上的 packaged-media-json 里有带声音的完整 mp4（解析器要登录才能用）
+  function redditDirect(v) {
+    for (let el = v, i = 0; el && el !== document.body && i < 8; el = el.parentElement, i++) {
+      const raw = el.getAttribute?.("packaged-media-json");
+      if (!raw) continue;
+      try {
+        const j = JSON.parse(raw);
+        const perms = (j.playbackMp4s?.permutations || []).filter((p) => p?.source?.url);
+        perms.sort((a, b) => (b.source.dimensions?.height || 0) - (a.source.dimensions?.height || 0));
+        if (!perms.length) return null;
+        const post = el.closest("shreddit-post");
+        const title = cleanTitle(post?.getAttribute("post-title") || document.title.replace(/\s*:\s*r\/\w+.*$/, ""));
+        const author = post?.getAttribute("author") || "";
+        return { url: perms[0].source.url, title: author ? `${title || "Reddit 视频"}_${author}`.slice(0, 80) : title || "Reddit 视频" };
+      } catch { return null; }
+    }
     return null;
   }
 
   // 返回 { url, title } 或 null
   async function directVideo(v) {
+    if (/(^|\.)reddit\.com$/.test(H)) return v ? redditDirect(v) : null;
     if (!HOOK_SITE) return null;
     const id = videoId(v);
     const info = await askHook(id);
@@ -102,9 +138,11 @@
   }
   const area = (v) => { const r = v.getBoundingClientRect(); return Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)) * Math.max(0, r.width); };
 
+  // 明确是主播放器的容器（YouTube、B 站等），这种播放器里常有片尾推荐链接，不能按旁边的链接算
+  const MAIN_PLAYER = "#movie_player, #shorts-player, .bpx-player-container, #bilibili-player, .player-container, [data-e2e='feed-active-video']";
   // 这个视频元素是不是页面的主播放器（而不是侧栏、片尾推荐里的小视频）
   function isMainPlayer(v) {
-    if (v.closest("#movie_player, #shorts-player, .bpx-player-container, #bilibili-player, .player-container, [data-e2e='feed-active-video']")) return true;
+    if (v.closest(MAIN_PLAYER)) return true;
     const vs = [...document.querySelectorAll("video")];
     return vs.every((x) => x === v || area(x) <= area(v)) && v.getBoundingClientRect().width > innerWidth * 0.4;
   }
@@ -114,8 +152,8 @@
     // 1. 抖音：视频卡片上直接写着编号
     const dy = douyinId(v);
     if (dy) return `https://www.douyin.com/video/${dy}`;
-    // 2. 当前就是视频页，而且是主播放器
-    if (isVideoPage(location.href) && isMainPlayer(v)) return location.href;
+    // 2. 当前就是视频页，而且明确是主播放器
+    if (isVideoPage(location.href) && v.closest(MAIN_PLAYER)) return location.href;
     // 3. 视频周围的链接（往外找几层，范围太大就停，免得拿到别的视频）
     const vr = v.getBoundingClientRect();
     for (let el = v, i = 0; el && el !== document.body && i < 8; el = el.parentElement, i++) {
@@ -126,9 +164,11 @@
       const a = [...el.querySelectorAll(LINK_SEL)].find((x) => isVideoPage(x.href));
       if (a) return a.href;
     }
-    // 4. YouTube 首页预览：刚才鼠标经过的那条视频（只认同一个网站的链接）
+    // 4. 当前就是视频页，这个视频看起来是主视频（X 详情页、小红书详情等，周围没有别的视频链接）
+    if (isVideoPage(location.href) && isMainPlayer(v)) return location.href;
+    // 5. YouTube 首页预览：刚才鼠标经过的那条视频（只认同一个网站的链接）
     if (lastLink && Date.now() - lastLinkAt < 8000 && sameSite(lastLink, location.href)) return lastLink;
-    // 5. 地址栏
+    // 6. 地址栏
     return isVideoPage(location.href) ? location.href : null;
   }
 

@@ -9,7 +9,8 @@ const MB = 1024 * 1024;
 // 视频网站：交给下载器用 yt-dlp 解析（和下载器里的列表保持一致）
 const VIDEO_SITES = ["bilibili.com", "b23.tv", "douyin.com", "iesdouyin.com", "kuaishou.com", "ixigua.com", "toutiao.com",
   "weibo.com", "xiaohongshu.com", "youtube.com", "youtu.be", "tiktok.com", "twitter.com", "x.com", "vimeo.com",
-  "acfun.cn", "v.qq.com", "youku.com", "iqiyi.com", "mgtv.com", "huya.com", "douyu.com", "instagram.com", "facebook.com", "nicovideo.jp"];
+  "acfun.cn", "v.qq.com", "youku.com", "iqiyi.com", "mgtv.com", "huya.com", "douyu.com", "instagram.com", "facebook.com", "nicovideo.jp",
+  "reddit.com", "redd.it", "xhslink.com", "weibo.cn", "gifshow.com", "twitch.tv", "dailymotion.com"];
 const FILE_EXT = /\.(zip|rar|7z|tar|gz|tgz|bz2|xz|zst|iso|exe|msi|msix|apk|dmg|pkg|deb|rpm|appimage|mp4|mkv|avi|mov|wmv|flv|webm|m4v|ts|mp3|flac|wav|aac|m4a|ogg|opus|pdf|docx?|xlsx?|pptx?|epub|mobi|torrent|bin|img|jar|whl)(\?|#|$)/i;
 
 const settings = { takeover: true };
