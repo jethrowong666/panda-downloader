@@ -3,7 +3,7 @@
 全场景下载器：一个工具搞定 HTTP、BT/磁力、PT、电驴 ed2k、迅雷/快车/旋风链接、m3u8 流媒体……
 开源（GPL-3.0-or-later），无广告。Panda 系列产品。
 
-> 当前版本 v0.2.9（开发中）：HTTP 多线程下载 + 断点续传、桌面程序、浏览器扩展、视频网站下载。BT、ed2k、网盘等见路线图。
+> 当前版本 v0.3.0（开发中）：HTTP 多线程下载 + 断点续传、桌面程序、浏览器扩展、视频网站下载、BT 种子 / 磁力链接。ed2k、网盘等见路线图。
 >
 > **下载安装包**：见 [Releases](../../releases)。安装包已自带 yt-dlp、ffmpeg、Deno，不需要另外安装任何东西。
 
@@ -26,6 +26,10 @@ cargo build --release -p panda-app
   扩展直接从网页已经加载的数据里拿视频地址（这些网站的接口要签名或登录，后台解析不了）；拿不到时自动交给解析器
 - 解析器直接支持（粘贴网址即可）：B 站、YouTube、Dailymotion、Pinterest、TED、AcFun、Streamable、Twitch、Bluesky、LinkedIn、Tumblr、VK、Rumble、Kick、
   Imgur、9GAG、Niconico、SoundCloud、Bandcamp、Mixcloud、虎牙、斗鱼等上千个网站
+- **BT 种子 / 磁力链接**（内核 [librqbit](https://github.com/ikatson/rqbit)）：复制磁力链接、双击 `.torrent` 文件、点网页上的磁力链接，
+  或者在浏览器里点种子下载，都会弹出确认窗；多文件种子自动放进以种子命名的文件夹，默认存到"BT下载"；
+  暂停、继续、取消、重启后接着下都和普通任务一样。私有种子（PT）只连种子里的 Tracker，不用 DHT / PEX，符合 PT 站规则。
+  暂时下完就停止上传（不长期做种），做种管理以后再做
 - 不支持有 DRM 版权加密的视频（Netflix、各平台付费会员内容等）
 - 从源码运行视频功能需要把 `yt-dlp.exe`、`ffmpeg.exe`、`deno.exe` 放进项目的 `tools\` 文件夹
 
@@ -111,8 +115,8 @@ cargo test --workspace
 |---|---|
 | v0.1 | 链接识别、HTTP 动态分段引擎、命令行、断点续传 ✓ |
 | v0.2 | Tauri 桌面程序、浏览器扩展（接管下载、视频嗅探）、视频网站下载（yt-dlp + ffmpeg，抖音/快手/西瓜走扩展） ✓ |
-| v0.3 | 浏览器扩展上架商店、链接续期、更多视频网站 |
-| v0.4 | BT / 磁力（libtorrent）、PT 严格模式、系统协议注册 |
+| v0.3 | BT / 磁力（librqbit）、PT 合规、magnet: 和 .torrent 关联 ✓；浏览器扩展上架商店、链接续期 |
+| v0.4 | 做种管理（分享率、做种时间）、选择下载种子里的部分文件 |
 | v0.5 | 自研 HLS / DASH 下载 |
 | v0.6 | ed2k 自研 |
 | v0.7 | 多源并行（HTTP + BT + ed2k 同一文件一起下）、Metalink、FTP/SFTP、IPFS |

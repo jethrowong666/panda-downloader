@@ -32,8 +32,9 @@ function activeRow(t) {
     case "paused":
       sub = `<span class="num">${human(t.downloaded)}${t.total ? " / " + human(t.total) : ""}</span><span class="dot">已暂停</span>`; barCls = "paused"; break;
     default:
-      sub = t.video?.merging ? "<span>正在合并音视频…</span>" : t.video?.resolving ? "<span>正在解析视频…</span>" : t.probing ? "<span>正在连接…</span>"
-        : `<span class="num">${human(t.downloaded)}${t.total ? " / " + human(t.total) : ""}</span>${t.speed ? `<span class="dot num">${speed(t.speed)}</span>` : ""}${t.total && t.speed ? `<span class="dot num">剩余 ${eta(t)}</span>` : ""}`;
+      sub = t.video?.merging ? "<span>正在合并音视频…</span>" : t.video?.resolving ? "<span>正在解析视频…</span>" : t.bt?.resolving ? "<span>正在获取种子信息…</span>" : t.probing ? "<span>正在连接…</span>"
+        : `<span class="num">${human(t.downloaded)}${t.total ? " / " + human(t.total) : ""}</span>${t.speed ? `<span class="dot num">${speed(t.speed)}</span>` : ""}${t.total && t.speed ? `<span class="dot num">剩余 ${eta(t)}</span>` : ""}`
+          + (t.bt ? `<span class="dot num">${t.bt.peers} 个用户</span>` : "");
       if (!t.total) barCls = "indeterminate";
   }
   if (!left) left = t.total ? `${p.toFixed(1)}%` : "";

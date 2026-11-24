@@ -1,7 +1,7 @@
 [package]
 name = "panda-app"
 description = "Panda Downloader desktop app"
-version = "0.2.9"
+version = "0.3.0"
 edition.workspace = true
 license.workspace = true
 
@@ -27,6 +27,9 @@ reqwest.workspace = true
 futures-util.workspace = true
 axum = "0.8"
 getrandom = "0.3"
+librqbit = { version = "9.1", default-features = false, features = ["rust-tls"] }
+bytes.workspace = true
+anyhow.workspace = true
 url.workspace = true
 arboard = "3"
 zip = { version = "2", default-features = false, features = ["deflate"] }

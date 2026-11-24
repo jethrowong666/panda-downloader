@@ -72,9 +72,24 @@ pub fn reveal(path: &Path) -> Result<(), String> {
 
 /// 给下载的文件打上"来自网络"标记（Zone.Identifier），
 /// 这样 Windows SmartScreen 和 Office 受保护视图会照常检查它，和浏览器下载的文件一样安全。
+/// 文件或整个文件夹的大小。
+pub fn size_of(path: &Path) -> u64 {
+    match std::fs::metadata(path) {
+        Ok(m) if m.is_dir() => std::fs::read_dir(path)
+            .map(|rd| rd.flatten().map(|e| size_of(&e.path())).sum())
+            .unwrap_or(0),
+        Ok(m) => m.len(),
+        Err(_) => 0,
+    }
+}
+
 pub fn mark_from_internet(path: &Path, url: &str) {
     #[cfg(windows)]
     {
+        // 只给已存在的文件打标记（文件夹不行；路径不存在时写 ADS 会凭空建出一个空文件）
+        if !path.is_file() {
+            return;
+        }
         let mut ads = path.as_os_str().to_owned();
         ads.push(":Zone.Identifier");
         let host_url: String = url.chars().filter(|c| !c.is_control()).collect();

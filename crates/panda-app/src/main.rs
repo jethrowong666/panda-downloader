@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod bridge;
+mod bt;
 mod category;
 mod clipboard;
 mod commands;
@@ -87,6 +88,11 @@ fn main() {
             let m = Manager::new(app.handle().clone(), data_dir);
             app.manage(m.clone());
             m.restore();
+            // 第一次启动就带着链接（双击 .torrent、点磁力链接、命令行）：直接加任务
+            let first: Vec<String> = std::env::args().skip(1).filter(|a| !a.starts_with("--")).collect();
+            if !first.is_empty() {
+                m.capture(first);
+            }
 
             // 心跳：刷新进度、控制窗口显示。
             let ticker = m.clone();

@@ -112,6 +112,19 @@ Section "主程序" SecMain
   WriteRegDWORD HKCU "${UNINSTKEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINSTKEY}" "NoRepair" 1
   WriteRegDWORD HKCU "${UNINSTKEY}" "EstimatedSize" 358000
+
+  ; 磁力链接（magnet:）和 .torrent 文件交给熊猫下载器打开
+  WriteRegStr HKCU "Software\Classes\magnet" "" "URL:磁力链接"
+  WriteRegStr HKCU "Software\Classes\magnet" "URL Protocol" ""
+  WriteRegStr HKCU "Software\Classes\magnet\DefaultIcon" "" '"$INSTDIR\${APPEXE}",0'
+  WriteRegStr HKCU "Software\Classes\magnet\shell\open\command" "" '"$INSTDIR\${APPEXE}" "%1"'
+  WriteRegStr HKCU "Software\Classes\PandaDownloader.torrent" "" "BT 种子文件"
+  WriteRegStr HKCU "Software\Classes\PandaDownloader.torrent\DefaultIcon" "" '"$INSTDIR\${APPEXE}",0'
+  WriteRegStr HKCU "Software\Classes\PandaDownloader.torrent\shell\open\command" "" '"$INSTDIR\${APPEXE}" "%1"'
+  WriteRegStr HKCU "Software\Classes\.torrent" "" "PandaDownloader.torrent"
+  WriteRegStr HKCU "Software\Classes\.torrent" "Content Type" "application/x-bittorrent"
+  WriteRegStr HKCU "Software\Classes\.torrent\OpenWithProgids" "PandaDownloader.torrent" ""
+  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
 SectionEnd
 
 Section "Uninstall"
@@ -136,5 +149,15 @@ Section "Uninstall"
   DeleteRegKey HKCU "Software\Chromium\NativeMessagingHosts\${HOSTNAME}"
   DeleteRegKey HKCU "Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\${HOSTNAME}"
   DeleteRegKey HKCU "${UNINSTKEY}"
+  ; 只删我们自己的关联（用户后来换成别的软件就不动）
+  ReadRegStr $0 HKCU "Software\Classes\magnet\shell\open\command" ""
+  StrCmp $0 '"$INSTDIR\${APPEXE}" "%1"' 0 +2
+    DeleteRegKey HKCU "Software\Classes\magnet"
+  ReadRegStr $0 HKCU "Software\Classes\.torrent" ""
+  StrCmp $0 "PandaDownloader.torrent" 0 +2
+    DeleteRegValue HKCU "Software\Classes\.torrent" ""
+  DeleteRegValue HKCU "Software\Classes\.torrent\OpenWithProgids" "PandaDownloader.torrent"
+  DeleteRegKey HKCU "Software\Classes\PandaDownloader.torrent"
+  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
   ; 设置和下载记录保留在 %APPDATA%\com.panda.downloader，重装后还在；下载的文件不动。
 SectionEnd

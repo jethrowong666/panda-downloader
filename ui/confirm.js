@@ -19,7 +19,7 @@ function render() {
   const dup = live.find((t) => t.dup_of);
   const ok = live.filter((t) => !t.unsupported && !t.dup_of);
   const next = dup ? "dup" : ok.length === 0 && live.length ? "unsupported" : ok.length > 1 ? "batch"
-    : ok[0]?.video ? (ok[0].video.title ? "video" : "video-loading") : "single";
+    : ok[0]?.bt ? "bt" : ok[0]?.video ? (ok[0].video.title ? "video" : "video-loading") : "single";
   if (next !== mode) { mode = next; build(live, ok, dup); }
   update(live, ok);
   fit(W);
@@ -62,6 +62,15 @@ function build(live, ok, dup) {
       <div class="lbl">保存到</div>${pathBox(dir)}<div class="err" id="err"></div>`;
     foot.innerHTML = `${askBox}<span class="grow"></span><button data-act="cancel">取消</button><button class="primary" data-act="start">开始下载</button>`;
     $("#name").addEventListener("input", () => (editedName = true));
+  } else if (mode === "bt") {
+    const t = ok[0];
+    dir = dir || t.dir;
+    $("#title").textContent = "BT 下载";
+    body.innerHTML = `<div class="file"><span class="badge">${ICON.magnet}</span>
+        <div class="grow col"><div class="name ellipsis" id="btName" style="padding:6px 0 0"></div>
+        <div class="meta num" id="meta"></div></div></div>
+      <div class="lbl">保存到</div>${pathBox(dir)}<div id="btNote"></div><div class="err" id="err"></div>`;
+    foot.innerHTML = `${askBox}<span class="grow"></span><button data-act="cancel">取消</button><button class="primary" data-act="start">开始下载</button>`;
   } else if (mode === "batch") {
     $("#title").textContent = `新建下载 · ${ok.length} 个文件`;
     ok.forEach((t) => checked.add(t.id));
@@ -102,6 +111,24 @@ function update(live, ok) {
     const err = $("#err");
     if (t.total != null && t.free_space != null && t.total - t.downloaded > t.free_space) err.innerHTML = '<div class="notice error">磁盘空间不够，换个保存位置吧</div>';
     else if (t.status === "failed" && t.error) err.innerHTML = `<div class="notice error">${errHtml(t.error)}</div>`;
+    else err.innerHTML = "";
+    setPre(t.downloaded, t.status);
+  } else if (mode === "bt") {
+    const t = ok[0], b = t.bt;
+    const nm = $("#btName");
+    nm.innerHTML = b.resolving ? '<span class="row"><span class="spin"></span>正在获取种子信息…</span>' : esc(t.name);
+    nm.title = b.resolving ? "" : t.name;
+    const bits = [];
+    if (t.total != null) bits.push(human(t.total));
+    else if (b.resolving) bits.push("磁力链接要先从网络上找到种子，一般十几秒");
+    if (b.files > 1) bits.push(`${b.files} 个文件`);
+    if (!b.resolving) bits.push(b.peers ? `已连上 ${b.peers} 个用户` : "正在找用户…");
+    if (t.free_space != null) bits.push(`剩余空间 ${human(t.free_space)}`);
+    $("#meta").innerHTML = bits.map((x, i) => `<span class="${i ? "dot" : ""}">${x}</span>`).join("") + '<span class="chip">可断点续传</span>' + (b.private ? '<span class="chip">私有种子</span>' : "");
+    $("#btNote").innerHTML = b.private ? '<div class="small muted" style="margin-top:8px">私有种子（PT）：只连种子里的服务器，不用 DHT 和用户交换，符合 PT 站规则。</div>' : "";
+    const err = $("#err");
+    if (t.status === "failed" && t.error) err.innerHTML = `<div class="notice error">${errHtml(t.error)}</div>`;
+    else if (t.total != null && t.free_space != null && t.total - t.downloaded > t.free_space) err.innerHTML = '<div class="notice error">磁盘空间不够，换个保存位置吧</div>';
     else err.innerHTML = "";
     setPre(t.downloaded, t.status);
   } else if (mode === "video-loading") {
@@ -155,6 +182,7 @@ async function start() {
   const live = tasks.filter((t) => !t.confirmed && !t.unsupported && !t.dup_of);
   let items;
   if (mode === "batch") items = live.filter((t) => checked.has(t.id)).map((t) => ({ id: t.id, name: t.name, dir }));
+  else if (mode === "bt") items = [{ id: live[0].id, name: live[0].name, dir }];
   else {
     const name = ($("#name")?.value || "").trim();
     if (!name) { $("#name").focus(); return; }

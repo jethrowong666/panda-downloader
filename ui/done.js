@@ -22,7 +22,7 @@ function render(all) {
     $("#content").innerHTML = `
       <div class="one">${fileBadge(t.category, 40)}
         <div class="grow col"><div class="name ellipsis" title="${esc(t.name)}">${esc(t.name)}</div>
-        <div class="small muted num">${human(t.total ?? t.downloaded)}<span class="dot">${esc(CAT[t.category]?.[1] || "文件")}</span></div></div></div>
+        <div class="small muted num">${human(t.total ?? t.downloaded)}<span class="dot">${t.bt && t.bt.files > 1 ? `文件夹 · ${t.bt.files} 个文件` : esc(CAT[t.category]?.[1] || "文件")}</span></div></div></div>
       <div class="acts"><button class="primary" data-act="primary" data-id="${t.id}">${esc(t.action_label)}</button>
         <button data-act="folder" data-id="${t.id}">${ICON.folder}打开文件夹</button></div>
       <div class="hint">按 Enter ${esc(t.action_label)}，10 秒后自动收起</div>`;

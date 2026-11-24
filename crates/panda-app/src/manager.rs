@@ -16,7 +16,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::bridge::{CaptureItem, ReqCtx};
 use crate::category::{self, Action, Category};
-use crate::store::{self, History, HistoryItem, SavedTask, SavedVideo, Settings};
+use crate::store::{self, History, HistoryItem, SavedBt, SavedTask, SavedVideo, Settings};
+use crate::bt;
 use crate::video::{self, VideoInfo};
 use crate::{sys, windows};
 
@@ -109,6 +110,67 @@ impl VideoJob {
     }
 }
 
+/// BT / 磁力任务的附加状态。
+struct BtJob {
+    /// 用户给的地址：磁力链接、种子网址、本地种子路径或 info hash。
+    location: String,
+    /// 拿到元数据后保存的种子文件（重启后直接用，不用再去网络上找）。
+    saved_torrent: Option<PathBuf>,
+    engine: Option<Arc<bt::BtEngine>>,
+    handle: Option<bt::Handle>,
+    meta: Option<bt::Meta>,
+    resolving: bool,
+    /// 重启后种子还没加回会话时显示的已下载量。
+    last_downloaded: u64,
+    cancel: CancellationToken,
+}
+
+impl BtJob {
+    fn new(location: String, saved_torrent: Option<PathBuf>) -> Self {
+        Self { location, saved_torrent, engine: None, handle: None, meta: None, resolving: false, last_downloaded: 0, cancel: CancellationToken::new() }
+    }
+
+    /// 已下载字节数：种子在会话里就取实时值，否则用上次记下的。
+    fn downloaded(&self) -> u64 {
+        self.live().map(|l| l.downloaded).unwrap_or(self.last_downloaded)
+    }
+
+    fn live(&self) -> Option<bt::Live> {
+        self.handle.as_ref().map(bt::live_of)
+    }
+
+    /// 停下：等待中的流程退出，种子暂停（保留已下载的部分）。
+    fn stop(&self) {
+        self.cancel.cancel();
+        if let (Some(e), Some(h)) = (self.engine.clone(), self.handle.clone()) {
+            tauri::async_runtime::spawn(async move { e.pause(&h).await });
+        }
+    }
+
+    /// 彻底移除：从 BT 会话里删掉，连同已下载的文件和保存的种子文件。
+    fn discard(&self, dir: &Path) {
+        self.cancel.cancel();
+        if let (Some(e), Some(h)) = (self.engine.clone(), self.handle.clone()) {
+            tauri::async_runtime::spawn(async move { e.remove(&h, true).await });
+        } else if let Some(m) = self.meta.as_ref() {
+            // 重启后还没加回会话的种子：直接删它的文件 / 文件夹
+            let ok = !m.content.as_os_str().is_empty()
+                && m.content.components().all(|c| matches!(c, std::path::Component::Normal(_)));
+            if ok {
+                let p = dir.join(&m.content);
+                if p.is_dir() {
+                    let _ = std::fs::remove_dir_all(&p);
+                } else {
+                    let _ = std::fs::remove_file(&p);
+                }
+            }
+        }
+        if let Some(p) = &self.saved_torrent {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+}
+
 pub struct Entry {
     id: u64,
     group: u64,
@@ -133,6 +195,7 @@ pub struct Entry {
     done_dismissed: bool,
     relocating: bool,
     video: Option<VideoJob>,
+    bt: Option<BtJob>,
     /// 浏览器带来的来源页、Cookie、UA（只在内存里）。
     ctx: ReqCtx,
 }
@@ -161,6 +224,7 @@ impl Entry {
             done_dismissed: false,
             relocating: false,
             video: None,
+            bt: None,
             ctx: ReqCtx::default(),
         }
     }
@@ -173,6 +237,12 @@ impl Entry {
         }
         if let Some(n) = &self.name {
             return n.clone();
+        }
+        if let Some(b) = &self.bt {
+            return match &b.meta {
+                Some(m) if !m.name.is_empty() => m.name.clone(),
+                _ => "正在获取种子信息…".into(),
+            };
         }
         if let Some(v) = &self.video {
             return match (&v.info, v.chosen()) {
@@ -193,6 +263,11 @@ impl Entry {
         if self.video.is_some() {
             return self.final_path.clone();
         }
+        if let Some(b) = &self.bt {
+            return self.final_path.clone().or_else(|| {
+                b.meta.as_ref().filter(|m| !m.name.is_empty()).map(|m| bt::output_path(m, &self.dir))
+            });
+        }
         self.final_path.clone().or_else(|| self.progress.as_ref().and_then(|p| p.path()))
     }
 
@@ -201,6 +276,9 @@ impl Entry {
     }
 
     fn downloaded(&self) -> u64 {
+        if let Some(b) = &self.bt {
+            return b.downloaded();
+        }
         match &self.video {
             Some(v) => v.progress().0,
             None => self.progress.as_ref().map_or(0, |p| p.downloaded()),
@@ -214,6 +292,9 @@ impl Entry {
         }
         if let Some(v) = &self.video {
             v.stop();
+        }
+        if let Some(b) = &self.bt {
+            b.stop();
         }
     }
 }
@@ -245,6 +326,17 @@ pub struct TaskView {
     /// 完成窗里已经关掉了。
     pub dismissed: bool,
     pub video: Option<VideoView>,
+    pub bt: Option<BtView>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BtView {
+    /// 正在获取种子信息（磁力链接找元数据、下载种子文件）。
+    pub resolving: bool,
+    pub peers: u32,
+    pub files: usize,
+    pub private: bool,
+    pub upload_speed: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -294,6 +386,8 @@ pub struct Manager {
     limiter: Arc<RateLimiter>,
     data_dir: PathBuf,
     inner: Mutex<Inner>,
+    /// BT 引擎：第一次有 BT 任务时才启动（会监听端口、连 DHT）。
+    bt_engine: tokio::sync::OnceCell<Arc<bt::BtEngine>>,
 }
 
 fn friendly(e: &DownloadError) -> String {
@@ -344,7 +438,20 @@ impl Manager {
                 pending_confirm: Vec::new(),
                 dirty: false,
             }),
+            bt_engine: tokio::sync::OnceCell::new(),
         })
+    }
+
+    async fn bt_engine(&self) -> Result<Arc<bt::BtEngine>, String> {
+        let (base, limit) = {
+            let g = self.inner.lock().unwrap();
+            (g.settings.base_dir.clone(), g.settings.speed_limit)
+        };
+        self.bt_engine
+            .get_or_try_init(|| async move { bt::BtEngine::new(base, limit).await.map(Arc::new) })
+            .await
+            .cloned()
+            .map_err(|e| bt::friendly(&format!("BT 引擎启动失败：{e:#}")))
     }
 
     pub fn settings(&self) -> Settings {
@@ -378,6 +485,13 @@ impl Manager {
             if let Some(v) = s.video {
                 e.video = Some(VideoJob::new(v.page_url, v.tmp_dir, v.choice));
             }
+            if let Some(b) = s.bt {
+                let mut job = BtJob::new(b.location, b.torrent_file);
+                job.meta = b.meta;
+                job.last_downloaded = b.downloaded;
+                e.bt = Some(job);
+                e.name = None;
+            }
             e.confirmed = true;
             e.status = St::Paused;
             if auto && !s.paused {
@@ -406,6 +520,27 @@ impl Manager {
             let link = item.url.clone();
             let Ok(parsed) = panda_link::parse(&link) else { continue };
             let id = g.next_id;
+            // BT：磁力链接、种子网址、本地种子文件；浏览器接管的下载如果文件名是 .torrent 也算
+            let is_bt = parsed.engine() == panda_link::Engine::BitTorrent
+                || item.filename.as_deref().is_some_and(|f| f.to_ascii_lowercase().ends_with(".torrent"));
+            if is_bt {
+                let location = parsed.resolved.clone();
+                if g.tasks.iter().any(|t| t.bt.as_ref().is_some_and(|b| b.location == location) && matches!(t.status, St::Downloading | St::Paused)) {
+                    continue;
+                }
+                let dir = g.settings.base_dir.join("BT下载");
+                let mut e = Entry::new(id, group, link, Some(location.clone()), dir, None);
+                e.bt = Some(BtJob::new(location, None));
+                e.ctx = ctx.clone();
+                e.confirmed = !ask;
+                g.next_id += 1;
+                // 和普通下载一样：弹确认窗的同时就开始找种子信息、开始下载
+                self.start(&mut e, conns);
+                g.tasks.push(e);
+                need_confirm |= ask;
+                added += 1;
+                continue;
+            }
             if parsed.engine() != panda_link::Engine::Http {
                 let mut e = Entry::new(id, group, link, None, g.settings.base_dir.clone(), None);
                 e.status = St::Failed;
@@ -471,9 +606,123 @@ impl Manager {
         }
     }
 
+    /// 开始 / 继续一个 BT 任务。
+    fn spawn_bt(self: &Arc<Self>, e: &mut Entry) {
+        let Some(job) = e.bt.as_mut() else { return };
+        job.cancel = CancellationToken::new();
+        job.resolving = job.meta.is_none();
+        e.run_gen += 1;
+        e.status = St::Downloading;
+        e.error = None;
+        e.speed = 0.0;
+        e.last_sample = None;
+        let (me, id, gen) = (self.clone(), e.id, e.run_gen);
+        tauri::async_runtime::spawn(async move {
+            let r = me.bt_pipeline(id, gen).await;
+            me.on_finished(id, gen, r);
+        });
+    }
+
+    /// BT 流程：拿种子 → 加入会话开始下载 → 等下载完 → 从会话移除（不长期做种）。
+    async fn bt_pipeline(self: &Arc<Self>, id: u64, gen: u64) -> Result<PathBuf, Option<String>> {
+        let engine = self.bt_engine().await.map_err(Some)?;
+        let (location, saved, dir, ctx, cancel, existing) = {
+            let mut g = self.inner.lock().unwrap();
+            let e = g.tasks.iter_mut().find(|t| t.id == id).ok_or(None)?;
+            let b = e.bt.as_mut().ok_or(None)?;
+            b.engine = Some(engine.clone());
+            (b.location.clone(), b.saved_torrent.clone(), e.dir.clone(), e.ctx.clone(), b.cancel.clone(), b.handle.clone())
+        };
+
+        let handle = match existing {
+            // 暂停后继续：同一个种子接着下
+            Some(h) => {
+                engine.resume(&h).await.map_err(|e| Some(bt::friendly(&format!("{e:#}"))))?;
+                h
+            }
+            None => {
+                // 上次保存的种子文件优先，不用再去网络上找元数据
+                let source = match saved.as_ref().and_then(|p| std::fs::read(p).ok()) {
+                    Some(b) => bt::Source::Bytes(b.into()),
+                    None => tokio::select! {
+                        _ = cancel.cancelled() => return Err(None),
+                        s = bt::fetch_source(&location, &ctx) => s.map_err(Some)?,
+                    },
+                };
+                // 磁力链接要先在 DHT / Tracker 上找元数据，可能要一会儿；期间被取消也要能退出
+                let added = tokio::select! {
+                    _ = cancel.cancelled() => return Err(None),
+                    r = engine.add(&source, &dir, false) => r,
+                };
+                let (h, meta) = added.map_err(|e| Some(bt::friendly(&format!("{e:#}"))))?;
+                // 记下元数据和种子文件
+                let torrent_file = bt::torrent_bytes(&h).and_then(|b| {
+                    let p = self.data_dir.join("torrents").join(format!("{}.torrent", meta.info_hash));
+                    std::fs::create_dir_all(p.parent()?).ok()?;
+                    std::fs::write(&p, &b).ok()?;
+                    Some(p)
+                });
+                let alive = {
+                    let mut g = self.inner.lock().unwrap();
+                    g.dirty = true;
+                    match g.tasks.iter_mut().find(|t| t.id == id && t.run_gen == gen) {
+                        Some(e) => {
+                            if let Some(b) = e.bt.as_mut() {
+                                b.handle = Some(h.clone());
+                                b.meta = Some(meta);
+                                b.resolving = false;
+                                if torrent_file.is_some() {
+                                    b.saved_torrent = torrent_file;
+                                }
+                            }
+                            true
+                        }
+                        None => false,
+                    }
+                };
+                // 找元数据期间任务已经被删掉了：连文件一起清掉
+                if !alive {
+                    engine.remove(&h, true).await;
+                    return Err(None);
+                }
+                // 找元数据期间被暂停了：停在这里
+                if cancel.is_cancelled() {
+                    engine.pause(&h).await;
+                    return Err(None);
+                }
+                h
+            }
+        };
+
+        // 等下载完（暂停 / 取消时退出等待）
+        tokio::select! {
+            _ = cancel.cancelled() => return Err(None),
+            r = handle.wait_until_completed() => r.map_err(|e| Some(bt::friendly(&format!("{e:#}"))))?,
+        }
+        let meta = {
+            let g = self.inner.lock().unwrap();
+            g.tasks.iter().find(|t| t.id == id).and_then(|t| t.bt.as_ref()).and_then(|b| b.meta.clone())
+        };
+        let path = bt::output_path(&meta.unwrap_or_else(|| bt::meta_of(&handle)), &dir);
+        engine.remove(&handle, false).await;
+        {
+            let mut g = self.inner.lock().unwrap();
+            if let Some(b) = g.tasks.iter_mut().find(|t| t.id == id).and_then(|t| t.bt.as_mut()) {
+                b.last_downloaded = b.downloaded();
+                b.handle = None;
+                if let Some(p) = b.saved_torrent.take() {
+                    let _ = std::fs::remove_file(p);
+                }
+            }
+        }
+        Ok(path)
+    }
+
     /// 开始（或继续）一个任务。
     fn start(self: &Arc<Self>, e: &mut Entry, connections: usize) {
-        if e.video.is_some() {
+        if e.bt.is_some() {
+            self.spawn_bt(e);
+        } else if e.video.is_some() {
             self.spawn_video(e);
         } else {
             self.spawn_run(e, connections);
@@ -711,9 +960,15 @@ impl Manager {
         }
         match r {
             Ok(path) => {
-                let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                let size = sys::size_of(&path);
                 let e = &g.tasks[idx];
-                let url = e.video.as_ref().map(|v| v.page_url.clone()).or_else(|| e.url.clone()).unwrap_or_default();
+                let url = e
+            .video
+            .as_ref()
+            .map(|v| v.page_url.clone())
+            .or_else(|| e.bt.as_ref().map(|b| b.location.clone()))
+            .or_else(|| e.url.clone())
+            .unwrap_or_default();
                 sys::mark_from_internet(&path, &url);
                 g.history.add(HistoryItem { url, path: path.clone(), size, finished_at: store::now_secs() });
                 store::save(&self.data_dir.join("history.json"), &g.history);
@@ -830,6 +1085,35 @@ impl Manager {
     async fn confirm_one(self: &Arc<Self>, item: ConfirmItem) {
         let name = panda_http::filename::sanitize(item.name.trim());
         let dir = PathBuf::from(item.dir.trim());
+        // BT：名字由种子决定；换了保存位置就从会话里移除（连已下的部分），在新位置重新开始
+        let bt_move = {
+            let mut g = self.inner.lock().unwrap();
+            g.dirty = true;
+            match g.tasks.iter_mut().find(|t| t.id == item.id) {
+                Some(e) if e.bt.is_some() => {
+                    e.confirmed = true;
+                    if e.dir == dir || e.status == St::Done {
+                        return;
+                    }
+                    let b = e.bt.as_mut().unwrap();
+                    b.cancel.cancel();
+                    e.run_gen += 1;
+                    Some((b.engine.clone(), b.handle.take()))
+                }
+                _ => None,
+            }
+        };
+        if let Some((engine, handle)) = bt_move {
+            if let (Some(en), Some(h)) = (engine, handle) {
+                en.remove(&h, true).await;
+            }
+            let mut g = self.inner.lock().unwrap();
+            if let Some(e) = g.tasks.iter_mut().find(|t| t.id == item.id) {
+                e.dir = dir;
+                self.spawn_bt(e);
+            }
+            return;
+        }
         let progress = {
             let mut g = self.inner.lock().unwrap();
             let conns = g.settings.connections;
@@ -1120,6 +1404,7 @@ impl Manager {
                     choice: v.choice.clone().or_else(|| v.chosen().map(|c| c.key.clone())),
                     tmp_dir: v.tmp_dir.clone(),
                 }),
+                bt: t.bt.as_ref().map(|b| SavedBt { location: b.location.clone(), torrent_file: b.saved_torrent.clone(), meta: b.meta.clone(), downloaded: b.downloaded() }),
             })
             .collect();
         store::save(&self.data_dir.join("tasks.json"), &saved);
@@ -1128,6 +1413,10 @@ impl Manager {
 
 fn delete_partial(e: &Entry) {
     if e.status == St::Done {
+        return;
+    }
+    if let Some(b) = &e.bt {
+        b.discard(&e.dir);
         return;
     }
     if let Some(v) = &e.video {
@@ -1203,6 +1492,35 @@ fn view(t: &Entry, with_space: bool) -> TaskView {
                 .unwrap_or_default(),
         }
     });
+    let bt = t.bt.as_ref().map(|b| {
+        let live = b.live();
+        resumable = true;
+        probing = b.resolving;
+        downloaded = b.downloaded();
+        if let Some(l) = &live {
+            if l.total > 0 {
+                total = Some(l.total);
+            }
+        }
+        let meta = b.meta.as_ref();
+        if let Some(m) = meta {
+            if total.is_none() && m.total > 0 {
+                total = Some(m.total);
+            }
+        }
+        // 多文件种子是文件夹：图标归"其他"，主按钮"打开"（打开文件夹）
+        if meta.map(|m| m.files != 1).unwrap_or(true) {
+            cat = Category::Other;
+            action = Action::Open;
+        }
+        BtView {
+            resolving: b.resolving,
+            peers: live.as_ref().map(|l| l.peers).unwrap_or(0),
+            files: meta.map(|m| m.files).unwrap_or(0),
+            private: meta.map(|m| m.private).unwrap_or(false),
+            upload_speed: live.as_ref().map(|l| l.upload_speed).unwrap_or(0),
+        }
+    });
     TaskView {
         id: t.id,
         group: t.group,
@@ -1227,5 +1545,6 @@ fn view(t: &Entry, with_space: bool) -> TaskView {
         free_space: if with_space { sys::free_space(&t.dir) } else { None },
         dismissed: t.done_dismissed,
         video,
+        bt,
     }
 }

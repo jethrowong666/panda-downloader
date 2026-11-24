@@ -95,6 +95,22 @@ pub struct SavedTask {
     pub paused: bool,
     #[serde(default)]
     pub video: Option<SavedVideo>,
+    #[serde(default)]
+    pub bt: Option<SavedBt>,
+}
+
+/// BT 任务重启后续传需要的信息。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SavedBt {
+    /// 用户给的地址：磁力链接、种子网址或本地种子路径。
+    pub location: String,
+    /// 拿到元数据后保存的种子文件（重启时不用再上网找）。
+    pub torrent_file: Option<PathBuf>,
+    /// 种子名称、大小等（重启后不用等联网就能显示）。
+    #[serde(default)]
+    pub meta: Option<crate::bt::Meta>,
+    #[serde(default)]
+    pub downloaded: u64,
 }
 
 /// 视频任务重启后续传需要的信息。
