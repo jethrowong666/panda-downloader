@@ -152,24 +152,55 @@
   }
 
   // ── X / Twitter：推文 legacy.extended_entities.media[].video_info.variants ──
-  function twitterTweet(id, legacy, author) {
-    const media = legacy?.extended_entities?.media || [];
-    const m = media.find((x) => x?.video_info?.variants?.length);
-    if (!m) return;
-    const urls = m.video_info.variants.filter((x) => x.content_type === "video/mp4" && x.url)
+  // 还要处理：可见性包装（TweetWithVisibilityResults.tweet）、引用推文、转推、卡片视频（unified_card）
+  const unwrapTweet = (r) => (r && r.tweet && r.tweet.rest_id ? r.tweet : r);
+  function mp4Variants(variants) {
+    return (variants || []).filter((x) => x && x.url && (x.content_type === "video/mp4" || /\.mp4(\?|$)/.test(x.url)))
       .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0)).map((x) => x.url);
-    const text = (legacy.full_text || legacy.text || "").replace(/https?:\/\/t\.co\/\w+/g, "").trim();
-    save(id, urls, text, author);
   }
-  function twitter(o) {
-    if (o.rest_id && o.legacy?.extended_entities) {
-      const u = o.core?.user_results?.result;
-      twitterTweet(o.rest_id, o.legacy, u?.legacy?.screen_name || u?.core?.screen_name);
-    } else if (o.id_str && o.extended_entities && !o.legacy) {
-      twitterTweet(o.id_str, o, o.user?.screen_name);
+  function tweetVideoUrls(t) {
+    const legacy = t?.legacy || t || {};
+    for (const m of legacy.extended_entities?.media || []) {
+      const urls = mp4Variants(m?.video_info?.variants);
+      if (urls.length) return urls;
     }
+    // 卡片视频：binding_values 里 unified_card 是一段 JSON 字符串
+    const bv = t?.card?.legacy?.binding_values || t?.card?.binding_values;
+    const list = Array.isArray(bv) ? bv : bv && typeof bv === "object" ? Object.entries(bv).map(([key, value]) => ({ key, value })) : [];
+    const uc = list.find((x) => x?.key === "unified_card");
+    if (uc?.value?.string_value) {
+      try {
+        const card = JSON.parse(uc.value.string_value);
+        for (const k in card.media_entities || {}) {
+          const urls = mp4Variants(card.media_entities[k]?.video_info?.variants);
+          if (urls.length) return urls;
+        }
+      } catch {}
+    }
+    return [];
   }
-
+  const tweetText = (t) => ((t?.legacy || t)?.full_text || (t?.legacy || t)?.text || "").replace(/https?:\/\/t\.co\/\w+/g, "").trim();
+  const tweetAuthor = (t) => {
+    const u = t?.core?.user_results?.result;
+    return u?.legacy?.screen_name || u?.core?.screen_name || t?.user?.screen_name || "";
+  };
+  function twitter(o) {
+    let id, own;
+    if (o.rest_id && o.legacy) { id = o.rest_id; own = o; }
+    else if (o.id_str && (o.extended_entities || o.full_text) && !o.legacy) { id = o.id_str; own = o; }
+    else return;
+    let src = own, urls = tweetVideoUrls(own);
+    // 这条推文自己没有视频：看看引用的推文、转推的原推文里有没有，有就也记在这条推文名下
+    if (!urls.length) {
+      const legacy = own.legacy || own;
+      for (const r of [own.quoted_status_result?.result, legacy.retweeted_status_result?.result, legacy.quoted_status_result?.result]) {
+        const t = unwrapTweet(r);
+        const u = t ? tweetVideoUrls(t) : [];
+        if (u.length) { urls = u; src = t; break; }
+      }
+    }
+    if (urls.length) save(id, urls, tweetText(src), tweetAuthor(src));
+  }
   // ── Facebook：Video 对象（browser_native_* 是带声音的完整 mp4）──
   function facebook(o) {
     const f = o.videoDeliveryLegacyFields && typeof o.videoDeliveryLegacyFields === "object" ? { ...o.videoDeliveryLegacyFields, ...o } : o;

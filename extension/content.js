@@ -135,6 +135,17 @@
   async function directVideo(v) {
     if (/(^|\.)reddit\.com$/.test(H)) return v ? redditDirect(v) : null;
     if (!HOOK_SITE) return null;
+    if (HOOK_SITE === "twitter") {
+      // 推文本身、引用的推文……逐个去问，第一个有视频的就是
+      for (const id of tweetIds(v)) {
+        const info = await askHook(id);
+        if (info?.urls?.length) {
+          const title = cleanTitle(info.desc) || `X 视频_${id}`;
+          return { url: info.urls[0], title: info.author ? `${title}_${info.author}`.slice(0, 80) : title };
+        }
+      }
+      return null;
+    }
     const id = videoId(v);
     const info = await askHook(id);
     const name = SITE_NAME[HOOK_SITE];
@@ -165,8 +176,26 @@
     return vs.every((x) => x === v || area(x) <= area(v)) && v.getBoundingClientRect().width > innerWidth * 0.4;
   }
 
+  // X：视频嵌得很深，按所在推文（article）找编号：带时间的那条链接是推文本身，其次是里面别的推文链接（引用的推文），最后是地址栏
+  function tweetIds(v) {
+    const ids = [];
+    const add = (href) => { const m = String(href || "").match(/\/status\/(\d+)/); if (m && !ids.includes(m[1])) ids.push(m[1]); };
+    const art = v && (v.closest('article') || v.closest('[data-testid="tweet"]'));
+    if (art) {
+      for (const a of art.querySelectorAll('a[href*="/status/"]')) if (a.querySelector('time')) add(a.href);
+      for (const a of art.querySelectorAll('a[href*="/status/"]')) add(a.href);
+    }
+    // 视频不在任何推文里（比如单独的视频页）才用地址栏的编号
+    if (!ids.length) add(location.href);
+    return ids;
+  }
+
   function pageFor(v) {
     if (!v) return isVideoPage(location.href) ? location.href : null;
+    if (HOOK_SITE === "twitter") {
+      const ids = tweetIds(v);
+      return ids.length ? `https://x.com/i/status/${ids[0]}` : null;
+    }
     // 1. 抖音：视频卡片上直接写着编号
     const dy = douyinId(v);
     if (dy) return `https://www.douyin.com/video/${dy}`;
