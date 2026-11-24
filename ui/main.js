@@ -125,7 +125,7 @@ function renderSettings(main) {
     <div class="group"><h3>快捷键</h3><div class="box">
       ${row("下载剪贴板里的链接", "任何时候都可以使用", "<span><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>D</kbd></span>")}
     </div></div>
-    <div class="about">熊猫下载器 0.2.8 · 开源软件（GPL-3.0）</div>`;
+    <div class="about">熊猫下载器 0.2.9 · 开源软件（GPL-3.0）</div>`;
   requestAnimationFrame(() => renderPaths(main));
   $("#conns").addEventListener("change", (e) => { const v = Math.max(1, Math.min(32, Math.round(+e.target.value) || 8)); e.target.value = v; save({ connections: v }); });
   $("#limit").addEventListener("change", (e) => { const v = Math.max(0, +e.target.value || 0); e.target.value = v; save({ speed_limit: Math.round(v * 1048576) }); });

@@ -222,7 +222,7 @@
   // 后台（右键菜单、弹出面板）来问"现在是哪个视频"
   let rightClicked = null;
   document.addEventListener("contextmenu", (e) => {
-    rightClicked = e.target instanceof HTMLVideoElement ? e.target : e.target.closest?.("video") || null;
+    rightClicked = videoAt(e.clientX, e.clientY, e.target);
   }, true);
   chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     if (msg.type !== "findPage") return;
@@ -257,18 +257,40 @@
   function place(v) {
     const r = v.getBoundingClientRect();
     if (r.width < 240 || r.height < 140) return hide();
+    // 有的网站（单页应用）会整块替换页面内容，按钮被移走了就放回去
+    if (!host.isConnected) (document.body || document.documentElement).appendChild(host);
     btn.style.display = "flex";
     btn.style.top = Math.max(8, r.top + 10) + "px";
     btn.style.left = Math.min(window.innerWidth - btn.offsetWidth - 8, r.right - btn.offsetWidth - 10) + "px";
   }
   function hide() { btn.style.display = "none"; current = null; }
 
-  document.addEventListener("mouseover", (e) => {
-    const v = e.target instanceof HTMLVideoElement ? e.target : e.target.closest?.("video");
-    const overBtn = e.composedPath().includes(host);
+  // 鼠标所在位置的视频。X、YouTube、Instagram 等网站的视频上面盖着一层透明的控制层，
+  // 鼠标碰到的是控制层、不是视频本身，所以按位置判断：落在哪个视频的范围里（有多个取最小的）。
+  function videoAt(x, y, target) {
+    const t = target instanceof HTMLVideoElement ? target : target?.closest?.("video");
+    if (t) return t;
+    let best = null, bestArea = Infinity;
+    for (const v of document.querySelectorAll("video")) {
+      const r = v.getBoundingClientRect();
+      if (r.width < 240 || r.height < 140) continue;
+      if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+      const a = r.width * r.height;
+      if (a < bestArea) { best = v; bestArea = a; }
+    }
+    return best;
+  }
+
+  let lastMove = 0;
+  document.addEventListener("mousemove", (e) => {
+    const now = Date.now();
+    if (now - lastMove < 80) return; // 节流，不影响页面性能
+    lastMove = now;
+    if (e.composedPath().includes(host)) { clearTimeout(hideTimer); return; }
+    const v = videoAt(e.clientX, e.clientY, e.target);
     if (v) { clearTimeout(hideTimer); current = v; place(v); }
-    else if (!overBtn && current) { clearTimeout(hideTimer); hideTimer = setTimeout(hide, 800); }
-  }, true);
+    else if (current) { clearTimeout(hideTimer); hideTimer = setTimeout(hide, 800); }
+  }, { capture: true, passive: true });
   window.addEventListener("scroll", () => current && place(current), { passive: true });
   btn.addEventListener("mouseenter", () => clearTimeout(hideTimer));
 
