@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/panda-link", "crates/panda-http", "crates/pandadl", "crates/panda-app", "crates/panda-host"]
 
 [workspace.package]
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 license = "GPL-3.0-or-later"
 

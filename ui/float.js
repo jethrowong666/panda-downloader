@@ -1,6 +1,7 @@
 // 右上角悬浮窗：只显示已确认、还没结束的任务。
-const W = 316, PILL_W = 200, MAX_ROWS = 4;
-let collapsed = false;
+const W = 316, PILL_W = 176, MAX_ROWS = 4;
+// 默认是小窗口，只显示总速度；点开才看每个任务
+let collapsed = true;
 $("#colBtn").innerHTML = ICON.minus;
 $("#mainBtn").innerHTML = ICON.window;
 $("#drop").innerHTML = `${ICON.inbox}<span>松开就开始下载</span>`;
@@ -49,7 +50,13 @@ function render(all) {
     (list.length > MAX_ROWS ? `<div class="more" data-act="main">还有 ${list.length - MAX_ROWS} 个任务，查看全部</div>` : ""));
   const sized = list.filter((t) => t.total);
   const all_pct = sized.length ? (sized.reduce((a, t) => a + t.downloaded, 0) * 100) / sized.reduce((a, t) => a + t.total, 0) : 0;
-  $("#pillText").textContent = `${all_pct.toFixed(0)}%  ${running ? speed(total) || "0 B/s" : "已暂停"}`;
+  const failed = list.filter((t) => t.status === "failed").length;
+  $("#pillText").textContent = running ? speed(total) || "0 B/s" : failed ? "下载失败" : "已暂停";
+  $("#pillCount").textContent = failed ? `${failed} 个失败` : `${list.length}`;
+  $("#pillCount").title = failed ? "点开查看原因" : `${list.length} 个任务`;
+  $("#pill").classList.toggle("warn", failed > 0);
+  $("#pillBar").style.width = `${all_pct.toFixed(1)}%`;
+  $("#pill").title = `总进度 ${all_pct.toFixed(0)}%，点开查看每个任务`;
   fit(collapsed ? PILL_W : W);
 }
 
@@ -67,12 +74,13 @@ $("#head").addEventListener("dblclick", () => invoke("show_main"));
 // 把链接拖到悬浮窗上就开始下载。
 let dragDepth = 0;
 document.addEventListener("dragenter", (e) => { e.preventDefault(); if (dragDepth++ === 0) { document.body.classList.add("dragging"); fit(W); } });
-document.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove("dragging"); fit(W); } });
+document.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove("dragging"); fit(collapsed ? PILL_W : W); } });
 document.addEventListener("dragover", (e) => e.preventDefault());
 document.addEventListener("drop", async (e) => {
   e.preventDefault();
   dragDepth = 0;
   document.body.classList.remove("dragging");
+  fit(collapsed ? PILL_W : W);
   const text = e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain");
   if (text && (await invoke("add_links", { text })) === 0) toast("没有识别到下载链接");
 });

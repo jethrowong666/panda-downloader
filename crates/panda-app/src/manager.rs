@@ -1662,6 +1662,10 @@ impl Manager {
             self.persist();
         }
         windows::set_float_visible(&self.app, show_float, float_pos);
+        // 每秒确认一次悬浮窗还在最上面
+        if show_float && n % 2 == 0 {
+            windows::keep_float_on_top(&self.app);
+        }
         windows::set_done_visible(&self.app, show_done);
         for gid in confirms {
             windows::open_confirm(&self.app, gid);

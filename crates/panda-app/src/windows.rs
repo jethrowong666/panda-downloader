@@ -59,6 +59,32 @@ pub fn set_float_visible(app: &AppHandle, visible: bool, saved_pos: Option<(i32,
     }
 }
 
+/// 悬浮窗始终在最上面：别的程序后来也设了"置顶"时会盖住我们，所以定期再抬一次。
+/// 不抢焦点、不移动、不改大小；异步提交，不会卡住调用线程。
+pub fn keep_float_on_top(app: &AppHandle) {
+    #[cfg(windows)]
+    if let Some(win) = app.get_webview_window("float") {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            SetWindowPos, HWND_TOPMOST, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE,
+        };
+        if let Ok(h) = win.hwnd() {
+            unsafe {
+                SetWindowPos(
+                    h.0 as _,
+                    HWND_TOPMOST,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS,
+                );
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = app;
+}
+
 pub fn set_done_visible(app: &AppHandle, visible: bool) {
     let existing = app.get_webview_window("done");
     match (visible, existing) {

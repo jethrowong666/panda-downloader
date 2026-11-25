@@ -25,18 +25,29 @@
   .drop { display: none; align-items: center; justify-content: center; gap: 6px; height: 40px; margin: 0 10px 10px; border: 1.5px dashed var(--accent); border-radius: var(--radius); font-size: 12px; color: var(--accent-text); background: var(--accent-soft); }
   .drop svg { width: 16px; height: 16px; }
   body.dragging .drop { display: flex; }
-  .pill { display: none; height: 36px; padding: 0 14px 0 10px; gap: 8px; cursor: pointer; }
+  .pill { display: none; position: relative; height: 38px; padding: 0 12px 0 10px; gap: 8px; cursor: pointer; }
   .pill .total { font-size: 13px; }
+  .pill .pcount { flex: none; height: 18px; padding: 0 6px; border-radius: 999px; font-size: 11px; line-height: 18px; color: var(--text-2); background: var(--bg-hover); }
+  .pill.warn .pcount { color: var(--danger); }
+  .pill .pbar { position: absolute; left: 22px; right: 22px; bottom: 5px; height: 2px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .pill .pbar b { display: block; height: 100%; background: var(--accent); transition: width .4s; }
+  .pill:hover { background: var(--bg-hover); }
   body.collapsed .pill { display: flex; }
   body.collapsed .full { display: none; }
   body.collapsed .card { border-radius: 999px; }
+  /* 小窗口时拖链接进来：临时展开出放置区 */
+  body.collapsed.dragging .pill { display: none; }
+  body.collapsed.dragging .full { display: block; }
+  body.collapsed.dragging .card { border-radius: var(--card-radius); }
 </style>
 </head>
-<body class="popup">
+<body class="popup collapsed">
 <div class="card">
-  <div class="pill row" data-act="expand" title="展开">
-    <img class="logo" src="logo.png" alt="" style="width:18px;height:18px">
-    <span class="total num" id="pillText"></span>
+  <div class="pill row" data-act="expand" id="pill" title="点开查看每个任务">
+    <img class="logo" src="logo.png" alt="" style="width:18px;height:18px;cursor:move" data-tauri-drag-region title="按住拖动">
+    <span class="total num grow" id="pillText"></span>
+    <span class="pcount num" id="pillCount"></span>
+    <i class="pbar"><b id="pillBar"></b></i>
   </div>
   <div class="full">
     <div class="head row" data-tauri-drag-region id="head">
