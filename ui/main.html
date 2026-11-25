@@ -42,7 +42,9 @@
   .t:last-child { border-bottom: none; }
   .t:hover { background: var(--bg-hover); }
   .t .info { min-width: 0; }
-  .t .sub { font-size: 12px; color: var(--text-2); margin-top: 2px; display: flex; align-items: center; min-width: 0; white-space: nowrap; }
+  .t .sub { font-size: 12px; color: var(--text-2); margin-top: 2px; display: flex; align-items: center; min-width: 0; white-space: nowrap; overflow: hidden; }
+  .t .sub > span { flex-shrink: 0; }
+  .t .sub > span:last-child { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .t .sub .err { color: var(--danger); overflow: hidden; text-overflow: ellipsis; }
   .t .prog .bar { margin-bottom: 5px; }
   .t .prog .l { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); }

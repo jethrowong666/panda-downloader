@@ -1,15 +1,63 @@
+# ============ 编译和打包产物 ============
 /target
-# 外部工具（yt-dlp、ffmpeg）体积大，打包时再放进安装包
-/tools/*.exe
+/dist
+/build
+*.exe
+*.msi
+*.dmg
+*.pkg
+*.AppImage
+*.deb
+*.rpm
+*.pdb
+*.zip
+*.7z
+
+# 外部工具（yt-dlp、ffmpeg、deno）体积大，打包安装包时再放进 tools\
+/tools/
+
+# ============ 敏感文件（不能公开） ============
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.cookies
+cookies.txt
+# 浏览器扩展开发私钥（用来固定扩展 ID）
+/extension-key.pem
+
+# ============ 下载过程中的临时文件 ============
 *.part
 *.part.json
+.panda-webseed-*/
+
+# ============ 个人笔记、设计过程稿 ============
+# 项目接力卡（只给本机用）
 PROJECT.md
-# 扩展开发私钥（固定扩展 ID 用），不要提交
-/extension-key.pem
-# 安装包和打包临时文件
-/dist
-# 图标设计过程稿（AI 候选图、早期方案），不进仓库
+# 图标设计过程稿（AI 候选图、早期方案）
 /crates/panda-app/icons/ai/
 /crates/panda-app/icons/concepts/
 /crates/panda-app/icons/logo.svg
 /crates/panda-app/icons/preview.png
+
+# ============ 依赖目录（以后加前端或脚本时用） ============
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# ============ 系统和编辑器垃圾文件 ============
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.log

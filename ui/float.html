@@ -16,7 +16,9 @@
   .task:hover .ops { display: flex; }
   .task:hover .pct { display: none; }
   .task .bar { margin: 6px 0 6px; }
-  .stats { display: flex; align-items: center; gap: 0; height: 16px; font-size: 11px; color: var(--text-2); }
+  .stats { display: flex; align-items: center; gap: 0; height: 16px; font-size: 11px; color: var(--text-2); white-space: nowrap; overflow: hidden; }
+  .stats > span { flex-shrink: 0; }
+  .stats > span:last-child { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .stats .err { color: var(--danger); }
   .more { display: flex; align-items: center; justify-content: center; height: 34px; font-size: 12px; color: var(--accent-text); border-top: 1px solid var(--line); cursor: pointer; }
   .more:hover { background: var(--bg-hover); }

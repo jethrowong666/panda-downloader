@@ -33,12 +33,13 @@ function activeRow(t) {
       sub = `<span class="num">${human(t.downloaded)}${t.total ? " / " + human(t.total) : ""}</span><span class="dot">已暂停</span>`; barCls = "paused"; break;
     default:
       sub = t.video?.merging ? "<span>正在合并音视频…</span>" : t.video?.resolving ? "<span>正在解析视频…</span>" : t.bt?.resolving ? "<span>正在获取种子信息…</span>" : t.probing ? "<span>正在连接…</span>"
-        : `<span class="num">${human(t.downloaded)}${t.total ? " / " + human(t.total) : ""}</span>${t.speed ? `<span class="dot num">${speed(t.speed)}</span>` : ""}${t.total && t.speed ? `<span class="dot num">剩余 ${eta(t)}</span>` : ""}`
-          + (t.bt ? `<span class="dot num">${t.bt.peers} 个用户</span>` + (t.bt.web ? '<span class="dot">网络种子加速</span>' : "") : "");
+        : `<span class="num">${human(t.downloaded)}${t.total ? " / " + human(t.total) : ""}</span>${t.speed ? `<span class="dot num">${speed(t.speed)}</span>` : ""}`
+          + (t.bt ? (t.bt.web ? '<span class="dot" title="正在用种子附带的 HTTP 地址加速">HTTP 加速</span>' : `<span class="dot num" title="已连上的 BT 用户">${t.bt.peers} 人</span>`) : "");
       if (!t.total) barCls = "indeterminate";
   }
   if (!left) left = t.total ? `${p.toFixed(1)}%` : "";
-  right = t.resumable ? "可续传" : "";
+  // 下载中：进度条下面右边显示剩余时间；其他状态显示能不能续传
+  right = t.status === "downloading" && t.total && t.speed ? `剩余 ${eta(t)}` : t.resumable ? "可续传" : "";
   const ops = [];
   if (t.status === "downloading") ops.push(`<button class="icon" data-act="pause" data-id="${t.id}" title="暂停">${ICON.pause}</button>`);
   if (t.status === "paused") ops.push(`<button class="icon" data-act="resume" data-id="${t.id}" title="继续">${ICON.play}</button>`);

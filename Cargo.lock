@@ -3775,7 +3775,7 @@ dependencies = [
 
 [[package]]
 name = "panda-app"
-version = "0.3.3"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -3804,7 +3804,7 @@ dependencies = [
 
 [[package]]
 name = "panda-host"
-version = "0.3.3"
+version = "1.0.0"
 dependencies = [
  "serde_json",
  "windows-sys 0.59.0",
@@ -3812,7 +3812,7 @@ dependencies = [
 
 [[package]]
 name = "panda-http"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axum",
  "bytes",
@@ -3830,7 +3830,7 @@ dependencies = [
 
 [[package]]
 name = "panda-link"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "base64 0.22.1",
  "encoding_rs",
@@ -3842,7 +3842,7 @@ dependencies = [
 
 [[package]]
 name = "pandadl"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "axum",
