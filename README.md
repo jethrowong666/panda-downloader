@@ -106,6 +106,7 @@ makensis /INPUTCHARSET UTF8 /DVERSION=1.0.0 /DSTAGING=<打包目录> /DOUTFILE=<
 | 连接数 | `connections` | `8` | 每个 HTTP 任务的最大连接数 |
 | 全局限速 | `speed_limit` | `0` | 字节/秒，`0` 表示不限速 |
 | 自动继续 | `auto_resume` | `true` | 启动时自动继续没下完的任务 |
+| 主题 | `theme` | `system` | `system` 跟随系统、`light` 浅色、`dark` 深色，改完马上生效 |
 | BT 端口 | `bt_port` | 随机 | 第一次用 BT 时在 20000~59999 之间随机选一个，之后固定 |
 
 ### 命令行参数（`pandadl get`）

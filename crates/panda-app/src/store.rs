@@ -27,6 +27,8 @@ pub struct Settings {
     pub float_pos: Option<(i32, i32)>,
     /// 悬浮窗位置：右边缘和上边缘（物理像素），拖动后记住。悬浮窗展开、收起时右边缘不动。
     pub float_anchor: Option<(i32, i32)>,
+    /// 外观："system" 跟随系统、"light" 浅色、"dark" 深色。
+    pub theme: String,
     /// BT 监听端口（第一次用 BT 时随机选一个固定下来，0 = 还没选）。
     pub bt_port: u16,
 }
@@ -48,6 +50,7 @@ impl Default for Settings {
             float_pos: None,
             float_anchor: None,
             bt_port: 0,
+            theme: "system".into(),
         }
     }
 }

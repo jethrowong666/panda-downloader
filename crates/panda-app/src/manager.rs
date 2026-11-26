@@ -479,6 +479,7 @@ impl Manager {
     pub fn new(app: AppHandle, data_dir: PathBuf) -> Arc<Self> {
         let settings: Settings = store::load(&data_dir.join("settings.json"));
         let history: History = store::load(&data_dir.join("history.json"));
+        windows::apply_theme(&app, &settings.theme);
         let limiter = Arc::new(RateLimiter::new(settings.speed_limit));
         let dl = Downloader::with_limiter(&ClientConfig::default(), limiter.clone()).expect("创建下载器失败");
         let dl_direct = Downloader::with_limiter(&ClientConfig { direct: true, ..Default::default() }, limiter.clone())
@@ -541,6 +542,7 @@ impl Manager {
 
     pub fn set_settings(&self, s: Settings) {
         self.limiter.set_rate(s.speed_limit);
+        windows::apply_theme(&self.app, &s.theme);
         // BT 会话已经开着的话，限速马上生效（不用重启）
         if let Some(e) = self.bt_engine.get() {
             e.set_download_limit(s.speed_limit);

@@ -12,6 +12,30 @@ const DONE_W: f64 = 372.0;
 const CONFIRM_W: f64 = 488.0;
 const MARGIN: f64 = 16.0;
 
+/// 外观设置：0 跟随系统，1 浅色，2 深色。新开的窗口按它来，已开的窗口用 `apply_theme` 切换。
+static THEME: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+fn theme() -> Option<tauri::Theme> {
+    match THEME.load(std::sync::atomic::Ordering::Relaxed) {
+        1 => Some(tauri::Theme::Light),
+        2 => Some(tauri::Theme::Dark),
+        _ => None,
+    }
+}
+
+/// 设置外观（"system" / "light" / "dark"），并让已经打开的窗口马上跟着变。
+pub fn apply_theme(app: &AppHandle, name: &str) {
+    let v = match name {
+        "light" => 1,
+        "dark" => 2,
+        _ => 0,
+    };
+    THEME.store(v, std::sync::atomic::Ordering::Relaxed);
+    for (_, w) in app.webview_windows() {
+        let _ = w.set_theme(theme());
+    }
+}
+
 /// 主显示器的可用区域（不含任务栏），逻辑像素：(x, y, 宽, 高, 缩放)。
 fn work_area(app: &AppHandle) -> (f64, f64, f64, f64, f64) {
     if let Ok(Some(m)) = app.primary_monitor() {
@@ -68,6 +92,7 @@ fn popup<'a>(app: &'a AppHandle, label: &'a str, page: &str, w: f64, h: f64) -> 
         .always_on_top(true)
         .skip_taskbar(true)
         .focused(false)
+        .theme(theme())
         // 关掉系统级拖放，网页才能收到拖进来的链接文字。
         .disable_drag_drop_handler()
 }
@@ -200,6 +225,7 @@ pub fn show_main(app: &AppHandle) {
         .inner_size(1000.0, 660.0)
         .min_inner_size(780.0, 500.0)
         .center()
+        .theme(theme())
         .disable_drag_drop_handler();
     if mica {
         b = b.transparent(true).effects(tauri::window::EffectsBuilder::new().effect(tauri::window::Effect::Mica).build());

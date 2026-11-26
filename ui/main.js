@@ -196,6 +196,9 @@ function renderSettings(main) {
       ${row("每个任务的连接数", "连接越多通常越快，个别服务器会限制连接数", `<input type="number" id="conns" min="1" max="32" value="${s.connections}" style="width:88px">`)}
       ${row("全局限速", "所有任务加起来的最高速度，0 表示不限速；改完马上生效", `<input type="number" id="limit" min="0" step="0.5" value="${+(s.speed_limit / 1048576).toFixed(1)}" style="width:88px"><span class="unit">MB/s</span>`)}
     </div></div>
+    <div class="group"><h3>外观</h3><div class="box">
+      ${row("主题", "深色模式下所有窗口一起变暗", `<div class="segc">${[["system", "跟随系统"], ["light", "浅色"], ["dark", "深色"]].map(([k, l]) => `<span class="${(s.theme || "system") === k ? "on" : ""}" data-act="theme" data-key="${k}">${l}</span>`).join("")}</div>`)}
+    </div></div>
     <div class="group"><h3>使用习惯</h3><div class="box">
       ${row("下载前确认", "关闭后复制链接就直接开始下载，不再弹出确认窗口", sw("ask_before_download"))}
       ${row("自动识别复制的链接", "复制下载链接、磁力链接时自动弹出；复制普通网页地址不会打扰你", sw("watch_clipboard"))}
@@ -250,6 +253,7 @@ onAct(document.body, {
   revealPath: (_, el) => invoke("open_path", { path: history[+el.dataset.i].path, reveal: true }).catch(() => toast("文件已被移动或删除")),
   forget: async (_, el) => { await invoke("remove_history", { path: history[+el.dataset.i].path }); loadHistory(); },
   toggle: (_, el) => save({ [el.dataset.key]: !settings[el.dataset.key] }),
+  theme: (_, el) => save({ theme: el.dataset.key }),
   pickBase: async () => { const p = await invoke("pick_folder", { start: settings.base_dir }); if (p) save({ base_dir: p, category_dirs: {} }); },
 });
 $("#link").addEventListener("keydown", (e) => { if (e.key === "Enter") addLink(); });
