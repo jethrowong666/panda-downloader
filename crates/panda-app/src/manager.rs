@@ -533,13 +533,21 @@ impl Manager {
 
     pub fn set_settings(&self, s: Settings) {
         self.limiter.set_rate(s.speed_limit);
+        // BT 会话已经开着的话，限速马上生效（不用重启）
+        if let Some(e) = self.bt_engine.get() {
+            e.set_download_limit(s.speed_limit);
+        }
         store::save(&self.data_dir.join("settings.json"), &s);
         self.inner.lock().unwrap().settings = s;
     }
 
-    pub fn save_float_pos(&self, x: i32, y: i32) {
+    /// 记住悬浮窗的右边缘和上边缘（物理像素）。
+    pub fn save_float_pos(&self, right: i32, top: i32) {
         let mut g = self.inner.lock().unwrap();
-        g.settings.float_pos = Some((x, y));
+        if g.settings.float_anchor == Some((right, top)) {
+            return;
+        }
+        g.settings.float_anchor = Some((right, top));
         store::save(&self.data_dir.join("settings.json"), &g.settings);
     }
 
@@ -1648,22 +1656,23 @@ impl Manager {
                 doomed.push(g.tasks.remove(i));
                 g.dirty = true;
             }
-            let show_float = !busy && g.tasks.iter().any(Entry::is_active);
+            // 悬浮窗任何时候都显示（用户要求：切到全屏网页、视频也不能消失）；确认窗、完成窗在全屏时仍然推迟
+            let show_float = g.tasks.iter().any(Entry::is_active);
             let show_done = !busy && g.tasks.iter().any(|t| t.confirmed && t.status == St::Done && !t.done_dismissed);
             let confirms = if busy { Vec::new() } else { std::mem::take(&mut g.pending_confirm) };
-            let save = std::mem::take(&mut g.dirty) || n % 20 == 0;
+            let save = std::mem::take(&mut g.dirty) || n.is_multiple_of(20);
             let views: Vec<TaskView> = g.tasks.iter().map(|t| view(t, !t.confirmed)).collect();
             if !doomed.is_empty() {
                 std::thread::spawn(move || doomed.iter().for_each(delete_partial));
             }
-            (views, show_float, show_done, confirms, g.settings.float_pos, save)
+            (views, show_float, show_done, confirms, g.settings.float_anchor, save)
         };
         if save {
             self.persist();
         }
         windows::set_float_visible(&self.app, show_float, float_pos);
-        // 每秒确认一次悬浮窗还在最上面
-        if show_float && n % 2 == 0 {
+        // 每 0.5 秒确认一次悬浮窗还在最上面（别的置顶窗口、全屏页面盖上来后马上抬回来）
+        if show_float {
             windows::keep_float_on_top(&self.app);
         }
         windows::set_done_visible(&self.app, show_done);

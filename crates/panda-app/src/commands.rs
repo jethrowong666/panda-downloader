@@ -164,6 +164,8 @@ pub fn fit_window(app: AppHandle, window: WebviewWindow, width: f64, height: f64
             if (old_w - width).abs() > 0.5 {
                 let _ = window.set_position(tauri::LogicalPosition::new(right - width, pos.y as f64 / scale));
             }
+            // 展开后变宽、变高，别跑出屏幕
+            windows::keep_float_inside(&app);
         }
     } else {
         let _ = window.set_size(tauri::LogicalSize::new(width, height));

@@ -182,6 +182,11 @@ impl BtEngine {
         Ok((handle, meta))
     }
 
+    /// 运行中修改下载限速（字节/秒，0 不限）。
+    pub fn set_download_limit(&self, bps: u64) {
+        self.session.ratelimits.set_download_bps(std::num::NonZeroU32::new(bps.min(u32::MAX as u64) as u32));
+    }
+
     pub async fn pause(&self, h: &Handle) {
         let _ = self.session.pause(h).await;
     }

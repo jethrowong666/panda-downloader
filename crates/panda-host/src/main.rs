@@ -137,7 +137,7 @@ fn launch_detached(exe: &std::path::Path) -> Result<(), String> {
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
-        return cmd.spawn().map(|_| ()).map_err(|e| format!("无法启动熊猫下载器：{e}"));
+        cmd.spawn().map(|_| ()).map_err(|e| format!("无法启动熊猫下载器：{e}"))
     }
     #[cfg(not(windows))]
     std::process::Command::new(exe).arg("--background").spawn().map(|_| ()).map_err(|e| format!("无法启动熊猫下载器：{e}"))

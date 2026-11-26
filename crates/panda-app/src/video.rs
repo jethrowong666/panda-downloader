@@ -478,8 +478,8 @@ fn build(raw: RawInfo, page_url: &str) -> Result<VideoInfo, String> {
         .iter()
         .filter(|f| f.has_audio() && !f.has_video())
         .max_by(|a, b| {
-            let pa = a.protocol.as_deref().map_or(false, |p| p.starts_with("http"));
-            let pb = b.protocol.as_deref().map_or(false, |p| p.starts_with("http"));
+            let pa = a.protocol.as_deref().is_some_and(|p| p.starts_with("http"));
+            let pb = b.protocol.as_deref().is_some_and(|p| p.starts_with("http"));
             // 优先 m4a（合并成 mp4 最兼容），再看码率
             (pa, a.ext.as_deref() == Some("m4a"), a.abr.or(a.tbr).unwrap_or(0.0) as u64)
                 .cmp(&(pb, b.ext.as_deref() == Some("m4a"), b.abr.or(b.tbr).unwrap_or(0.0) as u64))
@@ -497,8 +497,8 @@ fn build(raw: RawInfo, page_url: &str) -> Result<VideoInfo, String> {
             .iter()
             .filter(|f| f.has_video() && f.height == Some(*h))
             .max_by(|a, b| {
-                let da = a.protocol.as_deref().map_or(false, |p| p.starts_with("http"));
-                let db = b.protocol.as_deref().map_or(false, |p| p.starts_with("http"));
+                let da = a.protocol.as_deref().is_some_and(|p| p.starts_with("http"));
+                let db = b.protocol.as_deref().is_some_and(|p| p.starts_with("http"));
                 (da, a.has_audio() as u8 + a.codec_rank(), a.tbr.unwrap_or(0.0) as u64)
                     .cmp(&(db, b.has_audio() as u8 + b.codec_rank(), b.tbr.unwrap_or(0.0) as u64))
             })

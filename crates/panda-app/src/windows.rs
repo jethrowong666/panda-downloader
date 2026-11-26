@@ -5,7 +5,9 @@
 
 use tauri::{AppHandle, LogicalPosition, Manager, WebviewUrl, WebviewWindowBuilder};
 
-const FLOAT_W: f64 = 316.0;
+/// 悬浮窗默认是小窗口（只显示总速度），点开后变宽。
+const FLOAT_PILL_W: f64 = 176.0;
+const FLOAT_PILL_H: f64 = 56.0;
 const DONE_W: f64 = 360.0;
 const CONFIRM_W: f64 = 480.0;
 const MARGIN: f64 = 16.0;
@@ -26,6 +28,35 @@ fn work_area(app: &AppHandle) -> (f64, f64, f64, f64, f64) {
     (0.0, 0.0, 1920.0, 1040.0, 1.0)
 }
 
+/// 某一点所在显示器的可用区域（逻辑像素）：(x, y, 宽, 高, 缩放)。点不在任何显示器上就用主显示器。
+fn work_area_at(app: &AppHandle, phys_x: i32, phys_y: i32) -> (f64, f64, f64, f64, f64) {
+    if let Ok(list) = app.available_monitors() {
+        for m in list {
+            let (p, sz) = (m.position(), m.size());
+            if phys_x >= p.x && phys_x < p.x + sz.width as i32 && phys_y >= p.y && phys_y < p.y + sz.height as i32 {
+                let s = m.scale_factor();
+                let wa = m.work_area();
+                return (wa.position.x as f64 / s, wa.position.y as f64 / s, wa.size.width as f64 / s, wa.size.height as f64 / s, s);
+            }
+        }
+    }
+    work_area(app)
+}
+
+/// 把悬浮窗放回屏幕里（窗口变宽、换了分辨率、拔掉显示器后都可能跑到外面去）。
+pub fn keep_float_inside(app: &AppHandle) {
+    let Some(win) = app.get_webview_window("float") else { return };
+    let (Ok(pos), Ok(size)) = (win.outer_position(), win.outer_size()) else { return };
+    let (ax, ay, aw, ah, s) = work_area_at(app, pos.x + size.width as i32 / 2, pos.y + size.height as i32 / 2);
+    let (w, h) = (size.width as f64 / s, size.height as f64 / s);
+    let (x, y) = (pos.x as f64 / s, pos.y as f64 / s);
+    let nx = x.clamp(ax, (ax + aw - w).max(ax));
+    let ny = y.clamp(ay, (ay + ah - h).max(ay));
+    if (nx - x).abs() > 0.5 || (ny - y).abs() > 0.5 {
+        let _ = win.set_position(LogicalPosition::new(nx, ny));
+    }
+}
+
 fn popup<'a>(app: &'a AppHandle, label: &'a str, page: &str, w: f64, h: f64) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
     WebviewWindowBuilder::new(app, label, WebviewUrl::App(page.into()))
         .title("熊猫下载器")
@@ -41,16 +72,25 @@ fn popup<'a>(app: &'a AppHandle, label: &'a str, page: &str, w: f64, h: f64) -> 
         .disable_drag_drop_handler()
 }
 
-pub fn set_float_visible(app: &AppHandle, visible: bool, saved_pos: Option<(i32, i32)>) {
+/// `anchor`：上次记住的右边缘和上边缘（物理像素）。没有就放在主显示器右上角。
+pub fn set_float_visible(app: &AppHandle, visible: bool, anchor: Option<(i32, i32)>) {
     let existing = app.get_webview_window("float");
     match (visible, existing) {
         (true, None) => {
-            let (x, y, w, _, s) = work_area(app);
-            let (px, py) = match saved_pos {
-                Some((px, py)) => (px as f64 / s, py as f64 / s),
-                None => (x + w - FLOAT_W - MARGIN, y + MARGIN),
+            let (px, py) = match anchor {
+                Some((right, top)) => {
+                    // 按右边缘放，再限制在那块屏幕里面
+                    let (ax, ay, aw, ah, s) = work_area_at(app, right - 1, top);
+                    let x = (right as f64 / s - FLOAT_PILL_W).clamp(ax, ax + aw - FLOAT_PILL_W);
+                    let y = (top as f64 / s).clamp(ay, ay + ah - FLOAT_PILL_H);
+                    (x, y)
+                }
+                None => {
+                    let (x, y, w, _, _) = work_area(app);
+                    (x + w - FLOAT_PILL_W - MARGIN, y + MARGIN)
+                }
             };
-            let _ = popup(app, "float", "float.html", FLOAT_W, 120.0).position(px, py).build();
+            let _ = popup(app, "float", "float.html", FLOAT_PILL_W, FLOAT_PILL_H).position(px, py).build();
         }
         (false, Some(win)) => {
             let _ = win.close();

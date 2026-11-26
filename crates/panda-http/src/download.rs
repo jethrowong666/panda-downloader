@@ -507,7 +507,7 @@ impl TaskCtx {
         }
     }
 
-    async fn run_segmented(self: &Self, seg: Arc<SegmentedRun>, state_file: &Path) -> Result<()> {
+    async fn run_segmented(&self, seg: Arc<SegmentedRun>, state_file: &Path) -> Result<()> {
         let saver = spawn_saver(seg.file.clone(), state_file.to_path_buf(), {
             let seg = seg.clone();
             move || seg.state()

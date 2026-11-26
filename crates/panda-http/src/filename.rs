@@ -60,7 +60,7 @@ fn split_params(s: &str) -> Vec<&str> {
 
 /// 从网址路径的最后一段取文件名。
 pub fn from_url(url: &url::Url) -> Option<String> {
-    let last = url.path_segments()?.filter(|s| !s.is_empty()).last()?;
+    let last = url.path_segments()?.rfind(|s| !s.is_empty())?;
     let bytes: Vec<u8> = percent_encoding::percent_decode_str(last).collect();
     let name = bytes_to_text(&bytes);
     (!name.is_empty()).then_some(name)

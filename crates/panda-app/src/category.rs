@@ -128,7 +128,7 @@ pub fn looks_downloadable(url: &str) -> bool {
 /// 从网址猜文件名（真正的文件名要等服务器响应后才确定）。
 pub fn name_from_url(url: &str) -> Option<String> {
     let u = url::Url::parse(url).ok()?;
-    let last = u.path_segments()?.filter(|s| !s.is_empty()).next_back()?;
+    let last = u.path_segments()?.rfind(|s| !s.is_empty())?;
     let n = percent_decode(last);
     (!n.is_empty()).then_some(n)
 }

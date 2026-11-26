@@ -165,8 +165,9 @@ fn main() {
                 let _ = win.hide();
             }
             WindowEvent::Moved(pos) if win.label() == "float" => {
-                if let Some(m) = win.app_handle().try_state::<Arc<Manager>>() {
-                    m.save_float_pos(pos.x, pos.y);
+                // 记右边缘：小窗口和大窗口宽度不同，展开、收起都以右边缘为准
+                if let (Some(m), Ok(size)) = (win.app_handle().try_state::<Arc<Manager>>(), win.outer_size()) {
+                    m.save_float_pos(pos.x + size.width as i32, pos.y);
                 }
             }
             _ => {}

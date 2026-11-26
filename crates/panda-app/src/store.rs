@@ -23,8 +23,10 @@ pub struct Settings {
     pub speed_limit: u64,
     /// 启动时自动继续未完成的任务。
     pub auto_resume: bool,
-    /// 悬浮窗位置（物理像素），拖动后记住。
+    /// 旧版记的悬浮窗左上角。小窗口和大窗口宽度不同，按左上角记会越挪越偏，1.0.2 起不再使用。
     pub float_pos: Option<(i32, i32)>,
+    /// 悬浮窗位置：右边缘和上边缘（物理像素），拖动后记住。悬浮窗展开、收起时右边缘不动。
+    pub float_anchor: Option<(i32, i32)>,
     /// BT 监听端口（第一次用 BT 时随机选一个固定下来，0 = 还没选）。
     pub bt_port: u16,
 }
@@ -44,6 +46,7 @@ impl Default for Settings {
             speed_limit: 0,
             auto_resume: true,
             float_pos: None,
+            float_anchor: None,
             bt_port: 0,
         }
     }
