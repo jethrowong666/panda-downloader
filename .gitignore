@@ -61,3 +61,6 @@ $RECYCLE.BIN/
 *.swo
 *~
 *.log
+
+# 设计稿渲染出来的图片（源文件是同目录的 html / svg）
+/design/*.png

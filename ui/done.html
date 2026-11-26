@@ -6,20 +6,21 @@
 <link rel="stylesheet" href="style.css">
 <style>
   .card { position: relative; }
-  .timer { position: absolute; left: 0; top: 0; right: 0; height: 2px; background: var(--accent); transform-origin: left; transition: opacity .2s; }
+  .timer { position: absolute; left: 0; top: 0; right: 0; height: 3px; background: var(--grad); transform-origin: left; transition: opacity .2s; }
   body.hover .timer { opacity: 0; }
-  .head { height: 42px; padding: 0 6px 0 14px; gap: 8px; }
-  .head .ok { display: inline-flex; width: 18px; height: 18px; color: var(--accent); }
-  .head .ok svg { width: 18px; height: 18px; }
-  .head .title { font-size: 14px; }
-  .one { display: flex; gap: 12px; align-items: center; padding: 4px 14px 14px; }
-  .acts { display: flex; gap: 8px; padding: 0 14px 14px; }
+  .head { height: 48px; padding: 0 8px 0 16px; gap: 10px; }
+  .head .ok { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: #fff; background: var(--grad-btn); box-shadow: 0 4px 10px rgba(26, 168, 240, 0.35); }
+  .head .ok svg { width: 14px; height: 14px; }
+  .head .title { font-size: 15px; }
+  .one { display: flex; gap: 13px; align-items: center; padding: 4px 16px 14px; }
+  .acts { display: flex; gap: 10px; padding: 0 16px 14px; }
+  .acts button { height: 36px; border-radius: 12px; }
   .acts .primary { flex: 1; }
   .many { border-top: 1px solid var(--line); }
   .many .item { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--line); }
   .many .item:last-child { border-bottom: none; }
   .many .item:hover { background: var(--bg-hover); }
-  .hint { padding: 0 14px 12px; font-size: 11px; color: var(--text-3); }
+  .hint { padding: 0 16px 13px; font-size: 11px; color: var(--text-3); }
 </style>
 </head>
 <body class="popup">

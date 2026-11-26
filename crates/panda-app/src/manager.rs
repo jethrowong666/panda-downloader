@@ -23,6 +23,9 @@ use crate::{sys, windows};
 
 /// 取消后多久内可以撤销。
 const UNDO_WINDOW: Duration = Duration::from_secs(5);
+/// 已经下了很多的任务，删除后给更长的撤销时间，防止手滑。
+const UNDO_WINDOW_BIG: Duration = Duration::from_secs(10);
+const BIG_TASK: u64 = 100 * 1024 * 1024;
 /// 视频地址通常一两个小时后过期，超过这个时间就重新解析。
 const VIDEO_INFO_TTL: Duration = Duration::from_secs(30 * 60);
 /// 视频网站对单个连接数比较敏感，用少一点。
@@ -243,6 +246,8 @@ pub struct Entry {
     speed: f64,
     last_sample: Option<(Instant, u64)>,
     cancel_at: Option<Instant>,
+    /// 这次删除一共给了多长的撤销时间（界面画倒计时用）。
+    undo_total: Duration,
     done_dismissed: bool,
     relocating: bool,
     video: Option<VideoJob>,
@@ -272,6 +277,7 @@ impl Entry {
             speed: 0.0,
             last_sample: None,
             cancel_at: None,
+            undo_total: UNDO_WINDOW,
             done_dismissed: false,
             relocating: false,
             video: None,
@@ -373,6 +379,8 @@ pub struct TaskView {
     pub dup_of: Option<String>,
     pub unsupported: Option<String>,
     pub undo_ms: Option<u64>,
+    /// 撤销时间一共多长（毫秒）。
+    pub undo_total_ms: u64,
     pub free_space: Option<u64>,
     /// 完成窗里已经关掉了。
     pub dismissed: bool,
@@ -1332,7 +1340,9 @@ impl Manager {
             if matches!(e.status, St::Downloading | St::Paused | St::Failed) {
                 e.stop();
                 e.status = St::Cancelled;
-                e.cancel_at = Some(Instant::now() + UNDO_WINDOW);
+                let window = if e.downloaded() >= BIG_TASK { UNDO_WINDOW_BIG } else { UNDO_WINDOW };
+                e.undo_total = window;
+                e.cancel_at = Some(Instant::now() + window);
             }
         });
     }
@@ -1846,6 +1856,7 @@ fn view(t: &Entry, with_space: bool) -> TaskView {
         dup_of: t.dup_of.as_ref().map(|p| p.display().to_string()),
         unsupported: t.unsupported.clone(),
         undo_ms: t.cancel_at.map(|at| at.saturating_duration_since(Instant::now()).as_millis() as u64),
+        undo_total_ms: t.undo_total.as_millis() as u64,
         free_space: if with_space { sys::free_space(&t.dir) } else { None },
         dismissed: t.done_dismissed,
         video,

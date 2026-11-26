@@ -1,6 +1,6 @@
 // 确认窗：弹出时文件已经在后台下载，用户只需按回车。
 const group = Number(new URLSearchParams(location.search).get("g"));
-const W = 480;
+const W = 488;
 let tasks = [];
 let mode = "";            // single | batch | dup | unsupported
 let editedName = false;
@@ -30,7 +30,7 @@ function build(live, ok, dup) {
     $("#title").textContent = "这个文件已经下载过";
     dir = dup.dir;
     body.innerHTML = `
-      <div class="file">${fileBadge(dup.category, 36)}
+      <div class="file">${fileBadge(dup.category, 44)}
         <div class="grow col"><div class="name ellipsis" style="padding:6px 0 0" title="${esc(dup.name)}">${esc(dup.name)}</div>
         <div class="small muted" style="margin-top:2px">文件还在，位于</div></div></div>
       <div class="path" data-act="reveal" style="margin-top:12px" title="在文件夹中显示">${ICON.folder}<span class="p" data-path-text="${esc(dup.dup_of)}"></span><span class="change">查看</span></div>`;
@@ -66,7 +66,7 @@ function build(live, ok, dup) {
     const t = ok[0];
     dir = dir || t.dir;
     $("#title").textContent = "BT 下载";
-    body.innerHTML = `<div class="file"><span class="badge">${ICON.magnet}</span>
+    body.innerHTML = `<div class="file"><span class="badge">${fileBadge("bt", 44)}</span>
         <div class="grow col"><div class="name ellipsis" id="btName" style="padding:6px 0 0"></div>
         <div class="meta num" id="meta"></div></div></div>
       <div class="lbl">保存到</div>${pathBox(dir)}<div class="err" id="err"></div>`;
@@ -88,7 +88,7 @@ function build(live, ok, dup) {
     const t = ok[0];
     dir = dir || t.dir;
     body.innerHTML = `
-      <div class="file"><span class="badge" id="badge">${fileBadge(t.category, 36)}</span>
+      <div class="file"><span class="badge" id="badge">${fileBadge(t.category, 44)}</span>
         <div class="grow col"><input type="text" class="fname" id="name" value="${esc(t.name)}" spellcheck="false" title="点击修改文件名">
         <div class="meta num" id="meta"></div></div></div>
       <div class="lbl">保存到</div>${pathBox(dir)}<div class="err" id="err"></div>`;

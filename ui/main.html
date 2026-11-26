@@ -6,98 +6,151 @@
 <link rel="stylesheet" href="style.css">
 <style>
   html, body { height: 100%; overflow: hidden; }
-  body { display: flex; background: var(--bg); }
+  /* 底色：极光色晕。有系统毛玻璃（Win11）时窗口透明，色晕变淡，透出桌面。 */
+  body { display: flex; position: relative; background: var(--bg-app); }
+  body::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0; background:
+      radial-gradient(620px 460px at 0% 0%, rgba(110, 231, 208, 0.55), transparent 62%),
+      radial-gradient(700px 520px at 100% 0%, rgba(143, 182, 255, 0.5), transparent 64%),
+      radial-gradient(760px 560px at 85% 100%, rgba(201, 166, 255, 0.42), transparent 62%),
+      radial-gradient(560px 460px at 5% 100%, rgba(255, 211, 168, 0.4), transparent 60%); }
+  @media (prefers-color-scheme: dark) {
+    body::before { background:
+      radial-gradient(620px 460px at 0% 0%, rgba(15, 111, 102, 0.6), transparent 62%),
+      radial-gradient(700px 520px at 100% 0%, rgba(29, 63, 154, 0.6), transparent 64%),
+      radial-gradient(760px 560px at 85% 100%, rgba(90, 44, 156, 0.5), transparent 62%),
+      radial-gradient(560px 460px at 5% 100%, rgba(122, 58, 30, 0.42), transparent 60%); }
+  }
+  html.mica body { background: transparent; }
+  html.mica body::before { opacity: 0.9; }
+  body > * { position: relative; z-index: 1; }
 
   /* 侧边栏 */
-  aside { width: 208px; flex: none; display: flex; flex-direction: column; background: var(--bg-app); border-right: 1px solid var(--line); padding: 16px 12px; }
-  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 20px; }
-  .brand img { width: 30px; height: 30px; border-radius: 8px; }
-  .brand b { font-size: 15px; font-weight: 600; display: block; line-height: 1.2; }
-  .brand span { font-size: 11px; color: var(--text-3); }
-  .nav { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 10px; border-radius: var(--radius); color: var(--text-2); cursor: pointer; margin-bottom: 2px; }
+  aside { width: 224px; flex: none; display: flex; flex-direction: column; padding: 16px 12px 14px; border-right: 1px solid var(--line); background: rgba(255, 255, 255, 0.28); backdrop-filter: blur(30px) saturate(160%); }
+  @media (prefers-color-scheme: dark) { aside { background: rgba(255, 255, 255, 0.03); } }
+  .brand { display: flex; align-items: center; gap: 11px; padding: 2px 8px 18px; }
+  .brand img { width: 38px; height: 38px; border-radius: 11px; box-shadow: 0 4px 12px rgba(31, 169, 245, 0.35); }
+  .brand b { font-family: var(--font-d); font-size: 15px; font-weight: 650; display: block; line-height: 1.25; }
+  .brand span { font-size: 10.5px; color: var(--text-3); letter-spacing: .06em; }
+  .nav { display: flex; align-items: center; gap: 11px; height: 38px; padding: 0 12px; border-radius: var(--radius); color: var(--text-2); cursor: pointer; margin-bottom: 2px; font-size: 13.5px; transition: background-color .12s, color .12s; }
   .nav svg { width: 18px; height: 18px; flex: none; }
   .nav:hover { background: var(--bg-hover); color: var(--text); }
-  .nav.on { background: var(--bg); color: var(--text); font-weight: 500; box-shadow: 0 1px 2px rgba(15, 20, 30, 0.06), 0 0 0 1px var(--line); }
+  .nav.on { background: var(--panel-hi); color: var(--text); font-weight: 600; box-shadow: var(--shadow-sm), var(--hi); }
   .nav.on svg { color: var(--accent); }
-  .nav .n { margin-left: auto; font-size: 11px; color: var(--text-3); font-weight: 500; }
-  .nav.on .n { color: var(--text-2); }
-  .side-foot { margin-top: auto; padding: 12px 10px 2px; border-top: 1px solid var(--line); }
-  .side-foot .sp { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+  .nav .n { margin-left: auto; font-size: 11.5px; color: var(--text-3); font-weight: 500; }
+  .nav.sub { height: 34px; font-size: 13px; }
+  .nav .cdot { width: 8px; height: 8px; border-radius: 3px; margin: 0 5px; flex: none; }
+  .sep { font-size: 11px; color: var(--text-3); padding: 14px 12px 6px; letter-spacing: .08em; }
+  .cats { overflow-y: auto; min-height: 0; margin-right: -6px; padding-right: 6px; }
+  .gauge { margin-top: auto; padding: 13px 14px 10px; border-radius: 16px; background: var(--panel-hi); box-shadow: var(--shadow-sm), var(--hi); flex: none; }
+  .gauge small { font-size: 11px; color: var(--text-3); display: block; }
+  .gauge .v { font-family: var(--font-d); font-size: 25px; font-weight: 650; letter-spacing: -.02em; line-height: 1.25; }
+  .gauge .v i { font-style: normal; font-size: 12.5px; font-weight: 500; color: var(--text-2); margin-left: 4px; }
+  .spark { display: block; width: 100%; height: 34px; margin-top: 4px; }
 
   /* 内容区 */
-  section { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-  .top { display: flex; align-items: center; gap: 16px; height: 64px; padding: 0 24px; flex: none; }
-  .top h2 { font-size: 20px; font-weight: 600; margin: 0; white-space: nowrap; }
-  .add { flex: 1; display: flex; gap: 8px; max-width: 520px; margin-left: auto; }
+  section { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
+  .top { display: flex; align-items: center; gap: 14px; height: 68px; padding: 0 22px; flex: none; }
+  .top h2 { font-family: var(--font-d); font-size: 22px; font-weight: 680; margin: 0; white-space: nowrap; letter-spacing: -.01em; }
+  .add { flex: 1; display: flex; gap: 10px; max-width: 560px; margin-left: auto; }
   .add .in { position: relative; flex: 1; }
-  .add .in svg { position: absolute; left: 10px; top: 8px; width: 16px; height: 16px; color: var(--text-3); pointer-events: none; }
-  .add input { padding-left: 34px; }
-  .bar-tools { display: flex; align-items: center; gap: 8px; padding: 0 24px 10px; flex: none; min-height: 32px; }
-  .bar-tools .sum { font-size: 12px; color: var(--text-2); }
-  main { flex: 1; overflow-y: auto; padding: 0 16px 24px 24px; scrollbar-gutter: stable; }
+  .add .in svg { position: absolute; left: 12px; top: 11px; width: 16px; height: 16px; color: var(--text-3); pointer-events: none; }
+  .add input { padding-left: 36px; height: 38px; border-radius: 12px; background: var(--panel); }
+  .add button { height: 38px; border-radius: 12px; }
+  .bar-tools { display: flex; align-items: center; gap: 6px; padding: 0 22px 12px; flex: none; min-height: 40px; }
+  .bar-tools .sum { font-size: 12px; color: var(--text-3); margin-left: auto; }
+  .bar-tools button { height: 30px; padding: 0 12px; border-radius: 10px; font-size: 12.5px; }
+  .f { height: 28px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; color: var(--text-2); display: inline-flex; align-items: center; cursor: pointer; transition: background-color .12s; }
+  .f:hover { background: var(--bg-hover); }
+  .f.on { background: var(--primary-bg); color: var(--primary-fg); font-weight: 600; }
+  .find { position: relative; width: 220px; margin-left: auto; }
+  .find input { height: 30px; border-radius: 10px; padding-left: 30px; font-size: 12.5px; background: var(--panel); }
+  .find svg { position: absolute; left: 9px; top: 7px; width: 15px; height: 15px; color: var(--text-3); pointer-events: none; }
+  main { flex: 1; overflow-y: auto; padding: 0 14px 24px 22px; scrollbar-gutter: stable; }
 
-  /* 列表 */
-  .list { border: 1px solid var(--line); border-radius: var(--card-radius); overflow: hidden; }
-  .t { display: grid; grid-template-columns: 36px minmax(0, 1fr) 200px 104px; gap: 14px; align-items: center; height: 64px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--line); background: var(--bg); }
-  .t:last-child { border-bottom: none; }
-  .t:hover { background: var(--bg-hover); }
+  /* 任务卡片 */
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .t { display: grid; grid-template-columns: 44px minmax(0, 1fr) 210px 100px; gap: 14px; align-items: center; min-height: 68px; padding: 11px 10px 11px 12px; border-radius: 16px;
+    background: var(--panel-hi); border: 1px solid var(--edge); box-shadow: var(--shadow-sm), var(--hi); transition: transform .12s, box-shadow .12s; }
+  .t:hover { box-shadow: 0 6px 18px rgba(20, 30, 60, 0.1), var(--hi); }
   .t .info { min-width: 0; }
-  .t .sub { font-size: 12px; color: var(--text-2); margin-top: 2px; display: flex; align-items: center; min-width: 0; white-space: nowrap; overflow: hidden; }
+  .t .sub { font-size: 12px; color: var(--text-2); margin-top: 3px; display: flex; align-items: center; gap: 0; min-width: 0; white-space: nowrap; overflow: hidden; }
   .t .sub > span { flex-shrink: 0; }
   .t .sub > span:last-child { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .t .sub .tag { margin-left: 10px; }
   .t .sub .err { color: var(--danger); overflow: hidden; text-overflow: ellipsis; }
-  .t .prog .bar { margin-bottom: 5px; }
-  .t .prog .l { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); }
+  .t .prog .l { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text-2); margin-top: 6px; }
+  .t .prog .l b { color: var(--text); font-weight: 600; }
   .t .ops { display: flex; justify-content: flex-end; gap: 2px; opacity: 0; transition: opacity .12s; }
   .t:hover .ops, .t .ops.show { opacity: 1; }
-  .t.h { grid-template-columns: 36px minmax(0, 1fr) minmax(0, 0.8fr) 132px; }
+  .t.h { grid-template-columns: 44px minmax(0, 1fr) minmax(0, 0.7fr) 132px; }
   .t .where { font-size: 12px; color: var(--text-3); overflow: hidden; white-space: nowrap; }
 
   .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; height: calc(100% - 40px); min-height: 280px; color: var(--text-2); }
-  .empty img { width: 72px; height: 72px; border-radius: 18px; margin-bottom: 18px; opacity: .92; }
-  .empty b { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .empty img { width: 84px; height: 84px; border-radius: 22px; margin-bottom: 20px; box-shadow: 0 14px 30px rgba(31, 169, 245, 0.3); }
+  .empty b { font-family: var(--font-d); font-size: 17px; font-weight: 650; color: var(--text); margin-bottom: 6px; }
   .empty p { margin: 0 0 4px; font-size: 13px; }
+
+  /* 删除后的撤销条 */
+  .undo { position: absolute; left: 50%; bottom: 20px; transform: translate(-50%, 16px); opacity: 0; pointer-events: none; z-index: 5;
+    display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 8px 0 16px; border-radius: 14px; max-width: calc(100% - 48px);
+    background: var(--primary-bg); color: var(--primary-fg); font-size: 13px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3); transition: opacity .18s, transform .18s; overflow: hidden; }
+  .undo.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  .undo .msg { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .undo .msg small { opacity: .65; font-size: 12px; margin-left: 8px; }
+  .undo button { height: 30px; border-radius: 9px; border: none; box-shadow: none; font-weight: 600; background: rgba(127, 127, 127, 0.28); color: inherit; flex: none; }
+  .undo button:hover { background: rgba(127, 127, 127, 0.42); }
+  .undo .tm { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--grad); }
 
   /* 设置 */
   .group { margin: 0 0 20px; max-width: 720px; }
-  .group h3 { font-size: 12px; font-weight: 600; color: var(--text-2); margin: 0 0 8px 2px; letter-spacing: .02em; }
-  .group .box { border: 1px solid var(--line); border-radius: var(--card-radius); overflow: hidden; }
+  .group h3 { font-size: 12px; font-weight: 600; color: var(--text-2); margin: 0 0 8px 4px; letter-spacing: .04em; }
+  .group .box { border: 1px solid var(--edge); border-radius: 16px; overflow: hidden; background: var(--panel-hi); box-shadow: var(--shadow-sm), var(--hi); }
   .s { display: flex; align-items: center; gap: 24px; min-height: 64px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
   .s:last-child { border-bottom: none; }
   .s .txt { flex: 1; min-width: 0; }
-  .s .txt b { display: block; font-size: 14px; font-weight: 500; }
+  .s .txt b { display: block; font-size: 14px; font-weight: 600; }
   .s .txt small { display: block; font-size: 12px; color: var(--text-2); margin-top: 2px; }
   .s .ctl { flex: none; display: flex; align-items: center; gap: 8px; }
-  .s .path { width: 320px; }
+  .s .path { width: 320px; height: 34px; }
   .unit { font-size: 12px; color: var(--text-2); }
-  .switch { width: 40px; height: 22px; border-radius: 11px; background: var(--line-2); position: relative; cursor: pointer; flex: none; transition: background .15s; }
-  .switch::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
-  .switch.on { background: var(--accent); }
+  .switch { width: 44px; height: 26px; border-radius: 13px; background: var(--bg-active); position: relative; cursor: pointer; flex: none; transition: background .18s; }
+  .switch::after { content: ""; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .18s; box-shadow: 0 2px 5px rgba(0, 0, 0, .25); }
+  .switch.on { background: var(--grad-btn); }
   .switch.on::after { left: 21px; }
-  .about { font-size: 12px; color: var(--text-3); margin: 4px 2px 0; }
+  .about { font-size: 12px; color: var(--text-3); margin: 4px 4px 0; }
 </style>
 </head>
 <body>
 <aside>
-  <div class="brand"><img src="logo.png" alt=""><div><b>熊猫下载器</b><span>Panda Downloader</span></div></div>
+  <div class="brand"><img src="logo.png" alt=""><div><b>熊猫下载器</b><span>PANDA DOWNLOADER</span></div></div>
   <div class="nav on" data-act="tab" data-tab="active" id="navActive"></div>
   <div class="nav" data-act="tab" data-tab="done" id="navDone"></div>
-  <div class="nav" data-act="tab" data-tab="settings" id="navSet"></div>
-  <div class="side-foot">
-    <div class="tiny faint">当前总速度</div>
-    <div class="sp num" id="sideSpeed">0 B/s</div>
+  <div class="cats" id="cats"></div>
+  <div class="nav" data-act="tab" data-tab="settings" id="navSet" style="margin-top:6px"></div>
+  <div class="gauge">
+    <small>当前总速度</small>
+    <div class="v num"><span id="sideSpeed">0</span><i id="sideUnit">B/s</i></div>
+    <svg class="spark" id="spark" viewBox="0 0 200 34" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="spk" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#17d3a0"/><stop offset="1" stop-color="#25b7ff"/></linearGradient>
+        <linearGradient id="spf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#25b7ff" stop-opacity=".32"/><stop offset="1" stop-color="#25b7ff" stop-opacity="0"/></linearGradient>
+      </defs>
+      <path id="sparkFill" fill="url(#spf)" d=""/>
+      <path id="sparkLine" fill="none" stroke="url(#spk)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d=""/>
+    </svg>
   </div>
 </aside>
 <section>
   <div class="top">
     <h2 id="pageTitle">正在下载</h2>
     <div class="add" id="addBox">
-      <div class="in"><span id="linkIcon"></span><input type="text" id="link" placeholder="粘贴下载链接，按回车开始" spellcheck="false"></div>
+      <div class="in"><span id="linkIcon"></span><input type="text" id="link" placeholder="粘贴链接、磁力或视频网址，回车开始" spellcheck="false"></div>
       <button class="primary" data-act="add" id="addBtn"></button>
     </div>
   </div>
   <div class="bar-tools" id="tools"></div>
   <main id="main"></main>
+  <div class="undo" id="undo"><span class="msg" id="undoMsg"></span><button data-act="undoAll">撤销</button><i class="tm" id="undoTm"></i></div>
 </section>
 <script src="common.js"></script>
 <script src="main.js"></script>

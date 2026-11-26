@@ -1,5 +1,5 @@
 // 右上角悬浮窗：只显示已确认、还没结束的任务。
-const W = 316, PILL_W = 176, MAX_ROWS = 4;
+const W = 336, PILL_W = 172, MAX_ROWS = 4;
 // 默认是小窗口，只显示总速度；点开才看每个任务
 let collapsed = true;
 $("#colBtn").innerHTML = ICON.minus;
@@ -9,11 +9,7 @@ $("#drop").innerHTML = `${ICON.inbox}<span>松开就开始下载</span>`;
 function row(t) {
   const p = pct(t);
   let right, stats, barCls = "", ops = "";
-  if (t.status === "cancelled") {
-    right = `<button class="link" data-act="undo" data-id="${t.id}">撤销</button>`;
-    stats = `<span>已取消</span><span class="dot">${Math.ceil((t.undo_ms || 0) / 1000)} 秒后删除</span>`;
-    barCls = "paused";
-  } else if (t.status === "failed") {
+  if (t.status === "failed") {
     right = `<span class="pct" style="color:var(--danger)">失败</span>`;
     stats = `<span class="err ellipsis" title="${esc(t.error || "")}">${esc(errFirst(t.error))}</span>`;
     ops = `<button class="icon" data-act="resume" data-id="${t.id}" title="重试">${ICON.retry}</button>`;
@@ -30,7 +26,7 @@ function row(t) {
     ops = `<button class="icon" data-act="pause" data-id="${t.id}" title="暂停">${ICON.pause}</button>`;
     if (!t.total) barCls = "indeterminate";
   }
-  if (t.status !== "cancelled") ops += `<button class="icon danger" data-act="cancel" data-id="${t.id}" title="取消">${ICON.x}</button>`;
+  ops += `<button class="icon danger" data-act="cancel" data-id="${t.id}" title="删除任务和已下载的数据（可撤销）">${ICON.trash}</button>`;
   return `<div class="task" data-key="f${t.id}">
     <div class="top"><span class="grow ellipsis" title="${esc(t.name)}">${esc(t.name)}</span>${right}<span class="ops">${ops}</span></div>
     <div class="bar ${barCls}"><i style="width:${t.total ? p : 0}%"></i></div>
@@ -38,24 +34,29 @@ function row(t) {
 }
 
 function render(all) {
-  const list = all.filter((t) => t.confirmed && ["downloading", "paused", "failed", "cancelled"].includes(t.status));
+  const gone = all.filter((t) => t.confirmed && t.status === "cancelled");
+  const list = all.filter((t) => t.confirmed && ["downloading", "paused", "failed"].includes(t.status));
   const total = list.reduce((a, t) => a + (t.status === "downloading" ? t.speed : 0), 0);
   const running = list.filter((t) => t.status === "downloading").length;
   $("#total").textContent = running ? speed(total) || "0 B/s" : "已暂停";
   $("#count").textContent = `${list.length} 个任务`;
-  // 需要用户处理的排前面：可撤销的、失败的，然后是正在下载、已暂停。
-  const order = { cancelled: 0, failed: 1, downloading: 2, paused: 3 };
+  // 需要用户处理的排前面：失败的，然后是正在下载、已暂停。
+  const order = { failed: 1, downloading: 2, paused: 3 };
   const shown = [...list].sort((a, b) => order[a.status] - order[b.status]).slice(0, MAX_ROWS);
-  morph($("#list"), shown.map(row).join("") +
+  // 刚删除的任务：不占一行，只留一条可以撤销的提示
+  const goneBar = gone.length ? `<div class="gone" data-key="gone"><span>${gone.length === 1 ? `已删除「${esc(gone[0].name)}」` : `已删除 ${gone.length} 个任务`}</span><button data-act="undoAll">撤销</button>
+    <i style="width:${Math.min(100, (Math.max(...gone.map((t) => t.undo_ms || 0)) / Math.max(...gone.map((t) => t.undo_total_ms || 5000))) * 100)}%"></i></div>` : "";
+  morph($("#list"), goneBar + shown.map(row).join("") +
     (list.length > MAX_ROWS ? `<div class="more" data-act="main">还有 ${list.length - MAX_ROWS} 个任务，查看全部</div>` : ""));
   const sized = list.filter((t) => t.total);
   const all_pct = sized.length ? (sized.reduce((a, t) => a + t.downloaded, 0) * 100) / sized.reduce((a, t) => a + t.total, 0) : 0;
   const failed = list.filter((t) => t.status === "failed").length;
-  $("#pillText").textContent = running ? speed(total) || "0 B/s" : failed ? "下载失败" : "已暂停";
+  const [sv, su] = (speed(total) || "0 B/s").split(" ");
+  $("#pillText").innerHTML = running ? `${sv}<i>${su}</i>` : failed ? "下载失败" : list.length ? "已暂停" : "已删除";
   $("#pillCount").textContent = failed ? `${failed} 个失败` : `${list.length}`;
   $("#pillCount").title = failed ? "点开查看原因" : `${list.length} 个任务`;
   $("#pill").classList.toggle("warn", failed > 0);
-  $("#pillBar").style.width = `${all_pct.toFixed(1)}%`;
+  $("#pillArc").style.strokeDashoffset = (87.96 * (1 - all_pct / 100)).toFixed(2);
   $("#pill").title = `总进度 ${all_pct.toFixed(0)}%，点开查看每个任务`;
   fit(collapsed ? PILL_W : W);
 }
@@ -64,7 +65,7 @@ onAct(document.body, {
   pause: (id) => invoke("pause", { id }),
   resume: (id) => invoke("resume", { id }),
   cancel: (id) => invoke("cancel", { id }),
-  undo: (id) => invoke("undo_cancel", { id }),
+  undoAll: async () => (await invoke("tasks")).filter((t) => t.status === "cancelled").forEach((t) => invoke("undo_cancel", { id: t.id })),
   main: () => invoke("show_main"),
   collapse: () => { collapsed = true; document.body.classList.add("collapsed"); fit(PILL_W); },
   expand: () => { collapsed = false; document.body.classList.remove("collapsed"); fit(W); },

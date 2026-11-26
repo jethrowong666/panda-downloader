@@ -705,8 +705,8 @@ fn spawn_saver(
 ) -> tokio::task::JoinHandle<()> {
     let make = Arc::new(make);
     tokio::spawn(async move {
+        // 第一下立刻保存：刚开始下载就崩溃、断电，也留得下续传记录（以前要等满 1 秒）
         let mut tick = tokio::time::interval(Duration::from_secs(1));
-        tick.tick().await;
         loop {
             tick.tick().await;
             let (file, path, make) = (file.clone(), state_file.clone(), make.clone());

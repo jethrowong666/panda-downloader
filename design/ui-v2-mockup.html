@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>熊猫下载器 UI 2.0 效果图</title>
+<style>
+  :root {
+    --font: "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", sans-serif;
+    --ink: #0e1116; --ink-2: rgba(14,17,22,.62); --ink-3: rgba(14,17,22,.38);
+    --glass: rgba(255,255,255,.58); --glass-hi: rgba(255,255,255,.78); --glass-lo: rgba(255,255,255,.34);
+    --edge: rgba(255,255,255,.75); --hair: rgba(14,17,22,.08);
+    --mint: #17d3a0; --cyan: #25b7ff; --violet: #7c6cff;
+    --grad: linear-gradient(90deg, #17d3a0, #25b7ff);
+    --shadow: 0 30px 80px rgba(20,30,60,.28), 0 8px 24px rgba(20,30,60,.14);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: var(--font); color: var(--ink); width: 1680px; -webkit-font-smoothing: antialiased; background: #0b0d12; }
+  .stage { position: relative; padding: 56px 60px 64px; overflow: hidden; }
+  .wall { position: absolute; inset: 0; background:
+      radial-gradient(900px 700px at 12% 18%, #7fe7d0 0%, transparent 60%),
+      radial-gradient(900px 800px at 88% 12%, #8fb6ff 0%, transparent 62%),
+      radial-gradient(1000px 800px at 70% 92%, #c9a6ff 0%, transparent 60%),
+      radial-gradient(800px 700px at 18% 95%, #ffd3a8 0%, transparent 58%),
+      linear-gradient(135deg, #dff3ff, #eef0ff); }
+  .stage.dark .wall { background:
+      radial-gradient(900px 700px at 12% 18%, #0f6f66 0%, transparent 60%),
+      radial-gradient(900px 800px at 88% 12%, #1d3f9a 0%, transparent 62%),
+      radial-gradient(1000px 800px at 70% 92%, #5a2c9c 0%, transparent 60%),
+      radial-gradient(800px 700px at 18% 95%, #7a3a1e 0%, transparent 58%),
+      linear-gradient(135deg, #0b1020, #130d24); }
+  .label { position: relative; font-size: 15px; font-weight: 600; letter-spacing: .02em; color: rgba(14,17,22,.6); margin: 0 0 14px 4px; }
+  .dark .label { color: rgba(255,255,255,.66); }
+  .row { position: relative; display: flex; gap: 40px; align-items: flex-start; }
+
+  /* 玻璃材质 */
+  .glass { background: var(--glass); backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%);
+    border: 1px solid var(--edge); box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.9), inset 0 -1px 0 rgba(255,255,255,.25); }
+  .dark { --ink: #f3f5f9; --ink-2: rgba(243,245,249,.66); --ink-3: rgba(243,245,249,.4);
+    --glass: rgba(28,32,44,.55); --glass-hi: rgba(52,58,76,.6); --glass-lo: rgba(255,255,255,.06);
+    --edge: rgba(255,255,255,.16); --hair: rgba(255,255,255,.09);
+    --shadow: 0 30px 80px rgba(0,0,0,.55), 0 8px 24px rgba(0,0,0,.35); color: var(--ink); }
+  .dark .glass { box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.18), inset 0 -1px 0 rgba(255,255,255,.04); }
+
+  /* 主窗口 */
+  .win { width: 1000px; height: 640px; border-radius: 22px; display: grid; grid-template-columns: 232px 1fr; overflow: hidden; }
+  .side { padding: 18px 14px; display: flex; flex-direction: column; gap: 4px; border-right: 1px solid var(--hair); background: var(--glass-lo); }
+  .brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px 18px; }
+  .brand b { font-size: 15px; font-weight: 650; display: block; line-height: 1.2; }
+  .brand span { font-size: 11px; color: var(--ink-3); letter-spacing: .04em; }
+  .nav { display: flex; align-items: center; gap: 11px; height: 38px; padding: 0 12px; border-radius: 11px; font-size: 13.5px; color: var(--ink-2); }
+  .nav svg { width: 18px; height: 18px; flex: none; }
+  .nav .n { margin-left: auto; font-size: 11.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .nav.on { background: var(--glass-hi); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(20,30,60,.08), inset 0 1px 0 rgba(255,255,255,.9); }
+  .dark .nav.on { box-shadow: inset 0 1px 0 rgba(255,255,255,.14); }
+  .nav.on svg { color: #10b98f; }
+  .sep { font-size: 11px; color: var(--ink-3); padding: 16px 12px 6px; letter-spacing: .06em; }
+  .gauge { margin-top: auto; padding: 14px; border-radius: 16px; background: var(--glass-hi); box-shadow: inset 0 1px 0 rgba(255,255,255,.8); }
+  .dark .gauge { box-shadow: inset 0 1px 0 rgba(255,255,255,.12); }
+  .gauge small { font-size: 11px; color: var(--ink-3); }
+  .gauge .v { font-size: 26px; font-weight: 650; letter-spacing: -.02em; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .gauge .v i { font-style: normal; font-size: 13px; font-weight: 500; color: var(--ink-2); margin-left: 3px; }
+  .spark { display: block; width: 100%; height: 34px; margin-top: 6px; }
+
+  .main { padding: 18px 22px 0; display: flex; flex-direction: column; min-width: 0; }
+  .top { display: flex; align-items: center; gap: 12px; }
+  .top h1 { font-size: 22px; font-weight: 680; letter-spacing: -.01em; margin-right: 6px; }
+  .search { flex: 1; height: 38px; border-radius: 12px; background: var(--glass-lo); border: 1px solid var(--hair); display: flex; align-items: center; gap: 9px; padding: 0 13px; color: var(--ink-3); font-size: 13px; }
+  .search svg { width: 16px; height: 16px; }
+  .btn { height: 38px; padding: 0 16px; border-radius: 12px; font-size: 13.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--hair); background: var(--glass-hi); color: var(--ink); }
+  .btn.pri { border: 0; color: #fff; background: linear-gradient(135deg, #14c99a, #1aa8f0); box-shadow: 0 6px 18px rgba(26,168,240,.35), inset 0 1px 0 rgba(255,255,255,.45); }
+  .btn svg { width: 15px; height: 15px; }
+  .seg { display: flex; gap: 6px; margin: 16px 0 12px; align-items: center; }
+  .chip { height: 28px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; }
+  .chip.on { background: var(--ink); color: #fff; font-weight: 600; }
+  .dark .chip.on { background: #fff; color: #0e1116; }
+  .seg .sp { margin-left: auto; font-size: 12px; color: var(--ink-3); }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .item { display: grid; grid-template-columns: 44px minmax(0,1fr) 210px; gap: 14px; align-items: center; padding: 12px 16px 12px 12px; border-radius: 16px; background: var(--glass-hi); border: 1px solid rgba(255,255,255,.6); box-shadow: 0 1px 2px rgba(20,30,60,.05), inset 0 1px 0 rgba(255,255,255,.9); }
+  .dark .item { border-color: rgba(255,255,255,.08); box-shadow: inset 0 1px 0 rgba(255,255,255,.1); }
+  .ico { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 4px 10px rgba(20,30,60,.12); }
+  .ico svg { width: 22px; height: 22px; }
+  .i-bt { background: linear-gradient(135deg, #ff8a5c, #ff5d7a); } .i-iso { background: linear-gradient(135deg, #ffc24d, #ff9a3d); }
+  .i-vid { background: linear-gradient(135deg, #8f7bff, #5d8bff); } .i-exe { background: linear-gradient(135deg, #3fb6ff, #2f7dff); }
+  .i-zip { background: linear-gradient(135deg, #34d6a6, #18b0c9); }
+  .nm { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { font-size: 12px; color: var(--ink-2); margin-top: 3px; display: flex; gap: 10px; align-items: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tag { height: 18px; padding: 0 7px; border-radius: 6px; font-size: 10.5px; font-weight: 600; display: inline-flex; align-items: center; background: rgba(23,211,160,.16); color: #0a8f6c; }
+  .tag.b { background: rgba(37,183,255,.16); color: #0b76b8; } .tag.o { background: rgba(255,138,92,.18); color: #c2501f; }
+  .dark .tag { color: #5fe6c0; } .dark .tag.b { color: #7fd0ff; } .dark .tag.o { color: #ffb08f; }
+  .prog .bar { height: 6px; border-radius: 6px; background: rgba(14,17,22,.08); overflow: hidden; }
+  .dark .prog .bar { background: rgba(255,255,255,.1); }
+  .prog .bar i { display: block; height: 100%; border-radius: 6px; background: var(--grad); box-shadow: 0 0 12px rgba(37,183,255,.55); }
+  .prog .bar.p i { background: rgba(14,17,22,.28); box-shadow: none; } .dark .prog .bar.p i { background: rgba(255,255,255,.35); }
+  .prog .l { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--ink-2); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .prog .l b { color: var(--ink); font-weight: 600; }
+
+  /* 悬浮窗 */
+  .pill { height: 46px; border-radius: 999px; padding: 0 14px 0 7px; display: inline-flex; align-items: center; gap: 10px; }
+  .pill .ring { width: 32px; height: 32px; position: relative; }
+  .pill .ring svg { width: 32px; height: 32px; }
+  .pill .sp2 { font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .pill .sp2 i { font-style: normal; font-size: 11px; font-weight: 500; color: var(--ink-2); margin-left: 2px; }
+  .pill .cnt { height: 20px; min-width: 20px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 600; display: grid; place-items: center; background: rgba(14,17,22,.08); color: var(--ink-2); }
+  .dark .pill .cnt { background: rgba(255,255,255,.14); }
+  .fcard { width: 330px; border-radius: 20px; padding: 6px; }
+  .fhead { display: flex; align-items: center; gap: 10px; padding: 8px 10px 10px; }
+  .fhead b { font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .fhead span { font-size: 12px; color: var(--ink-2); }
+  .ftask { padding: 10px 12px 11px; border-radius: 14px; background: var(--glass-hi); margin-top: 6px; box-shadow: inset 0 1px 0 rgba(255,255,255,.85); }
+  .dark .ftask { box-shadow: inset 0 1px 0 rgba(255,255,255,.1); }
+  .ftask .t { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; gap: 10px; }
+  .ftask .t span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ftask .t span:last-child { color: var(--ink-2); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .ftask .bar { height: 5px; border-radius: 5px; background: rgba(14,17,22,.08); margin: 8px 0 7px; overflow: hidden; }
+  .dark .ftask .bar { background: rgba(255,255,255,.1); }
+  .ftask .bar i { display: block; height: 100%; background: var(--grad); border-radius: 5px; }
+  .ftask .s { font-size: 11.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+  /* 确认窗、完成窗 */
+  .dlg { width: 470px; border-radius: 22px; padding: 20px 20px 18px; }
+  .dlg h3 { font-size: 16px; font-weight: 650; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+  .dlg h3 .pre { margin-left: auto; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: rgba(23,211,160,.16); color: #0a8f6c; }
+  .dark .dlg h3 .pre { color: #5fe6c0; }
+  .frow { display: flex; gap: 13px; align-items: center; }
+  .field { margin-top: 14px; height: 42px; border-radius: 12px; background: var(--glass-lo); border: 1px solid var(--hair); display: flex; align-items: center; gap: 10px; padding: 0 13px; font-size: 13px; color: var(--ink-2); }
+  .field svg { width: 17px; height: 17px; } .field a { margin-left: auto; color: #0b9d78; font-weight: 600; font-size: 12.5px; }
+  .dark .field a { color: #5fe6c0; }
+  .acts { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; align-items: center; }
+  .acts label { margin-right: auto; font-size: 12.5px; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
+  .acts label i { width: 16px; height: 16px; border-radius: 5px; border: 1.5px solid var(--ink-3); display: block; }
+  .toast { width: 360px; border-radius: 20px; padding: 14px; }
+  .toast .ok { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #14c99a, #1aa8f0); display: grid; place-items: center; color: #fff; }
+  .toast .ok svg { width: 15px; height: 15px; }
+  .toast .acts { margin-top: 14px; } .toast .btn { flex: 1; justify-content: center; }
+
+  /* 图标 */
+  .icons { display: flex; gap: 34px; align-items: flex-end; }
+  .ic { text-align: center; font-size: 13px; font-weight: 600; color: rgba(14,17,22,.7); }
+  .dark .ic { color: rgba(255,255,255,.75); }
+  .ic svg.big { width: 168px; height: 168px; display: block; filter: drop-shadow(0 18px 30px rgba(20,30,60,.3)); margin-bottom: 14px; }
+  .ic .sm { display: flex; gap: 12px; justify-content: center; align-items: flex-end; margin-bottom: 10px; }
+  .ic .sm svg { filter: drop-shadow(0 4px 8px rgba(20,30,60,.25)); }
+  .ic small { display: block; font-weight: 400; font-size: 12px; color: rgba(14,17,22,.5); margin-top: 3px; }
+  .dark .ic small { color: rgba(255,255,255,.5); }
+  .desk { display: flex; gap: 26px; padding: 18px 26px; border-radius: 20px; }
+  .desk .d { text-align: center; font-size: 12px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6); width: 76px; }
+  .desk svg { width: 52px; height: 52px; display: block; margin: 0 auto 6px; filter: drop-shadow(0 4px 8px rgba(0,0,0,.3)); }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <!-- 方案 A：深空玻璃 -->
+    <linearGradient id="a-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1b2a55"/><stop offset=".55" stop-color="#16345f"/><stop offset="1" stop-color="#0c6b6a"/></linearGradient>
+    <radialGradient id="a-glow" cx=".5" cy=".86" r=".6"><stop offset="0" stop-color="#2ef0c0" stop-opacity=".75"/><stop offset="1" stop-color="#2ef0c0" stop-opacity="0"/></radialGradient>
+    <linearGradient id="a-face" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".98"/><stop offset="1" stop-color="#d9ecff" stop-opacity=".86"/></linearGradient>
+    <linearGradient id="arrow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3ff5c8"/><stop offset="1" stop-color="#12b8ff"/></linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="a-ear" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b74b8"/><stop offset="1" stop-color="#27356a"/></linearGradient>
+    <!-- 方案 B：晨雾玻璃 -->
+    <linearGradient id="b-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4fbff"/><stop offset=".5" stop-color="#d6f3ec"/><stop offset="1" stop-color="#bcd9ff"/></linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a3142"/><stop offset="1" stop-color="#0c0f16"/></linearGradient>
+    <!-- 方案 C：极光渐变 -->
+    <linearGradient id="c-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#19d6a4"/><stop offset=".5" stop-color="#1fa9f5"/><stop offset="1" stop-color="#7b6bff"/></linearGradient>
+
+    <symbol id="icoA" viewBox="0 0 512 512">
+      <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#a-bg)"/>
+      <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#a-glow)"/>
+      <circle cx="150" cy="150" r="62" fill="url(#a-ear)"/><circle cx="362" cy="150" r="62" fill="url(#a-ear)"/>
+      <circle cx="150" cy="150" r="62" fill="none" stroke="#bfe6ff" stroke-opacity=".6" stroke-width="4"/><circle cx="362" cy="150" r="62" fill="none" stroke="#bfe6ff" stroke-opacity=".6" stroke-width="4"/>
+      <ellipse cx="256" cy="274" rx="168" ry="150" fill="url(#a-face)"/>
+      <ellipse cx="256" cy="274" rx="168" ry="150" fill="none" stroke="#fff" stroke-width="4" stroke-opacity=".9"/>
+      <ellipse cx="190" cy="258" rx="40" ry="52" transform="rotate(18 190 258)" fill="url(#ink)"/><ellipse cx="322" cy="258" rx="40" ry="52" transform="rotate(-18 322 258)" fill="url(#ink)"/>
+      <circle cx="198" cy="246" r="11" fill="#fff"/><circle cx="314" cy="246" r="11" fill="#fff"/>
+      <path d="M256 322v48M232 350l24 26 24-26" fill="none" stroke="url(#arrow)" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M128 112a112 112 0 0 1 96-80h160a112 112 0 0 1 96 80c-70-32-282-32-352 0z" fill="url(#shine)" opacity=".5"/>
+      <rect x="17.5" y="17.5" width="477" height="477" rx="110.500" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="3"/>
+    </symbol>
+    <symbol id="icoB" viewBox="0 0 512 512">
+      <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#b-bg)"/>
+      <circle cx="150" cy="152" r="60" fill="url(#ink)"/><circle cx="362" cy="152" r="60" fill="url(#ink)"/>
+      <ellipse cx="256" cy="276" rx="166" ry="148" fill="#fff" fill-opacity=".72"/>
+      <ellipse cx="256" cy="276" rx="166" ry="148" fill="none" stroke="#fff" stroke-width="5"/>
+      <ellipse cx="190" cy="260" rx="38" ry="50" transform="rotate(18 190 260)" fill="url(#ink)"/><ellipse cx="322" cy="260" rx="38" ry="50" transform="rotate(-18 322 260)" fill="url(#ink)"/>
+      <circle cx="198" cy="248" r="10" fill="#fff"/><circle cx="314" cy="248" r="10" fill="#fff"/>
+      <path d="M256 322v46M233 348l23 25 23-25" fill="none" stroke="url(#arrow)" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M128 112a112 112 0 0 1 96-80h160a112 112 0 0 1 96 80c-70-32-282-32-352 0z" fill="#fff" opacity=".55"/>
+      <rect x="17.5" y="17.5" width="477" height="477" rx="110.500" fill="none" stroke="#9fb8d6" stroke-opacity=".55" stroke-width="3"/>
+    </symbol>
+    <symbol id="icoC" viewBox="0 0 512 512">
+      <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#c-bg)"/>
+      <circle cx="152" cy="156" r="56" fill="#fff" fill-opacity=".92"/><circle cx="360" cy="156" r="56" fill="#fff" fill-opacity=".92"/>
+      <ellipse cx="256" cy="278" rx="160" ry="142" fill="#fff" fill-opacity=".95"/>
+      <ellipse cx="192" cy="262" rx="36" ry="48" transform="rotate(18 192 262)" fill="#101521"/><ellipse cx="320" cy="262" rx="36" ry="48" transform="rotate(-18 320 262)" fill="#101521"/>
+      <circle cx="199" cy="250" r="9" fill="#fff"/><circle cx="313" cy="250" r="9" fill="#fff"/>
+      <path d="M256 322v44M234 346l22 24 22-24" fill="none" stroke="#101521" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M128 112a112 112 0 0 1 96-80h160a112 112 0 0 1 96 80c-70-32-282-32-352 0z" fill="url(#shine)" opacity=".7"/>
+      <rect x="17.5" y="17.5" width="477" height="477" rx="110.500" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="3"/>
+    </symbol>
+
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-done" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M8 12.500l2.700 2.700L16 10" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.200" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.600 5.600l2.100 2.100M16.300 16.300l2.100 2.100M5.600 18.400l2.100-2.100M16.300 7.700l2.100-2.100" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="i-magnet" viewBox="0 0 24 24"><path d="M6 4v8a6 6 0 0 0 12 0V4h-4v8a2 2 0 0 1-4 0V4zM6 8h4M14 8h4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></symbol>
+    <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M10 9.500v5l4.500-2.500z" fill="currentColor"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M14 3v5h5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></symbol>
+    <symbol id="i-disc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="12" cy="12" r="2.500" fill="none" stroke="currentColor" stroke-width="1.9"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.700 0l3-3a4 4 0 0 0-5.700-5.700l-1 1M14 10a4 4 0 0 0-5.700 0l-3 3a4 4 0 0 0 5.700 5.700l1-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.400" stroke-linecap="round"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.500l4.500 4.500L19 7.500" fill="none" stroke="currentColor" stroke-width="2.800" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="ring" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13.500" fill="none" stroke="currentColor" stroke-opacity=".14" stroke-width="3"/><circle cx="16" cy="16" r="13.500" fill="none" stroke="url(#arrow)" stroke-width="3" stroke-linecap="round" stroke-dasharray="52 85" transform="rotate(-90 16 16)"/></symbol>
+  </defs>
+</svg>
+
+<!-- ============ 浅色 ============ -->
+<div class="stage">
+  <div class="wall"></div>
+  <div class="label">主窗口 · 浅色</div>
+  <div class="row">
+    <div class="win glass">
+      <div class="side">
+        <div class="brand"><svg width="40" height="40"><use href="#icoA"/></svg><div><b>熊猫下载器</b><span>PANDA DOWNLOADER</span></div></div>
+        <div class="nav on"><svg><use href="#i-down"/></svg>正在下载<span class="n">4</span></div>
+        <div class="nav"><svg><use href="#i-done"/></svg>已完成<span class="n">128</span></div>
+        <div class="sep">分类</div>
+        <div class="nav"><svg><use href="#i-video"/></svg>视频<span class="n">52</span></div>
+        <div class="nav"><svg><use href="#i-magnet"/></svg>BT 种子<span class="n">9</span></div>
+        <div class="nav"><svg><use href="#i-file"/></svg>文件<span class="n">67</span></div>
+        <div class="nav" style="margin-top:6px"><svg><use href="#i-gear"/></svg>设置</div>
+        <div class="gauge"><small>当前总速度</small><div class="v">10.9<i>MB/s</i></div>
+          <svg class="spark" viewBox="0 0 200 34" preserveAspectRatio="none"><defs><linearGradient id="sf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#25b7ff" stop-opacity=".35"/><stop offset="1" stop-color="#25b7ff" stop-opacity="0"/></linearGradient></defs>
+            <path d="M0 26 C20 22 28 12 44 14 S70 24 88 16 110 6 128 10 150 20 168 8 190 6 200 9 V34 H0z" fill="url(#sf)"/>
+            <path d="M0 26 C20 22 28 12 44 14 S70 24 88 16 110 6 128 10 150 20 168 8 190 6 200 9" fill="none" stroke="url(#arrow)" stroke-width="2.200" stroke-linecap="round"/></svg></div>
+      </div>
+      <div class="main">
+        <div class="top"><h1>正在下载</h1><div class="search"><svg><use href="#i-link"/></svg>粘贴链接、磁力或视频网址，回车开始</div><div class="btn pri"><svg><use href="#i-plus"/></svg>新建</div></div>
+        <div class="seg"><span class="chip on">全部 4</span><span class="chip">下载中 3</span><span class="chip">已暂停 1</span><span class="sp">剩余约 9 分钟</span></div>
+        <div class="list">
+          <div class="item"><div class="ico i-bt"><svg><use href="#i-magnet"/></svg></div><div><div class="nm">ubuntu-24.04.3-desktop-amd64.iso</div><div class="meta"><span>1.1 GB / 5.9 GB</span><span class="tag o">BT · 93 人</span></div></div><div class="prog"><div class="bar"><i style="width:18%"></i></div><div class="l"><b>8.9 MB/s</b><span>剩余 9 分 19 秒</span></div></div></div>
+          <div class="item"><div class="ico i-vid"><svg><use href="#i-video"/></svg></div><div><div class="nm">4K 航拍 | 冰岛的夏天.mp4</div><div class="meta"><span>312 MB / 486 MB</span><span class="tag b">2160P</span></div></div><div class="prog"><div class="bar"><i style="width:64%"></i></div><div class="l"><b>1.2 MB/s</b><span>剩余 2 分 25 秒</span></div></div></div>
+          <div class="item"><div class="ico i-bt"><svg><use href="#i-magnet"/></svg></div><div><div class="nm">BigBuckBunny_124</div><div class="meta"><span>195 MB / 421 MB</span><span class="tag">HTTP 加速</span></div></div><div class="prog"><div class="bar"><i style="width:46%"></i></div><div class="l"><b>922 KB/s</b><span>剩余 4 分 11 秒</span></div></div></div>
+          <div class="item"><div class="ico i-exe"><svg><use href="#i-file"/></svg></div><div><div class="nm">blender-4.2.0-windows-x64.msi</div><div class="meta"><span>118 MB / 328 MB</span><span>已暂停</span></div></div><div class="prog"><div class="bar p"><i style="width:36%"></i></div><div class="l"><b>36%</b><span>可续传</span></div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:26px">
+      <div><div class="label">悬浮窗 · 默认小窗口</div><div class="pill glass"><div class="ring"><svg style="color:#0e1116"><use href="#ring"/></svg><svg style="position:absolute;inset:6px;width:20px;height:20px"><use href="#icoA"/></svg></div><span class="sp2">10.9<i>MB/s</i></span><span class="cnt">4</span></div></div>
+      <div><div class="label">悬浮窗 · 点开</div>
+        <div class="fcard glass"><div class="fhead"><svg width="26" height="26"><use href="#icoA"/></svg><b>10.9 MB/s</b><span>4 个任务</span></div>
+          <div class="ftask" style="margin-top:0"><div class="t"><span>ubuntu-24.04.3-desktop-amd64.iso</span><span>18%</span></div><div class="bar"><i style="width:18%"></i></div><div class="s">8.9 MB/s · 剩余 9 分 19 秒 · 93 人</div></div>
+          <div class="ftask"><div class="t"><span>4K 航拍 | 冰岛的夏天.mp4</span><span>64%</span></div><div class="bar"><i style="width:64%"></i></div><div class="s">1.2 MB/s · 剩余 2 分 25 秒</div></div></div></div>
+      <div><div class="label">完成提示</div>
+        <div class="toast glass"><div class="frow"><div class="ok"><svg><use href="#i-check"/></svg></div><div><div class="nm">冰岛的夏天.mp4</div><div class="meta" style="margin-top:1px">486 MB · 视频</div></div></div>
+          <div class="acts"><div class="btn pri">播放</div><div class="btn"><svg><use href="#i-folder"/></svg>打开文件夹</div></div></div></div>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:44px;align-items:flex-end">
+    <div><div class="label">确认窗</div>
+      <div class="dlg glass"><h3>新建下载<span class="pre">已在后台下载 1.3 MB</span></h3>
+        <div class="frow"><div class="ico i-bt"><svg><use href="#i-magnet"/></svg></div><div style="min-width:0"><div class="nm">Sintel</div><div class="meta"><span>123 MB</span><span>11 个文件</span><span>已连上 10 人</span><span class="tag">可续传</span></div></div></div>
+        <div class="field"><svg><use href="#i-folder"/></svg>D:\下载\BT下载<a>更改</a></div>
+        <div class="acts"><label><i></i>以后不再询问</label><div class="btn">取消</div><div class="btn pri">开始下载</div></div></div></div>
+
+    <div><div class="label">新图标 · 3 个方案（大图标 / 任务栏 32px / 托盘 20px）</div>
+      <div class="icons">
+        <div class="ic"><svg class="big"><use href="#icoA"/></svg><div class="sm"><svg width="48" height="48"><use href="#icoA"/></svg><svg width="32" height="32"><use href="#icoA"/></svg><svg width="20" height="20"><use href="#icoA"/></svg></div>A · 深空玻璃<small>深色底，任何壁纸上都醒目</small></div>
+        <div class="ic"><svg class="big"><use href="#icoB"/></svg><div class="sm"><svg width="48" height="48"><use href="#icoB"/></svg><svg width="32" height="32"><use href="#icoB"/></svg><svg width="20" height="20"><use href="#icoB"/></svg></div>B · 晨雾玻璃<small>延续现在的白色玻璃熊猫</small></div>
+        <div class="ic"><svg class="big"><use href="#icoC"/></svg><div class="sm"><svg width="48" height="48"><use href="#icoC"/></svg><svg width="32" height="32"><use href="#icoC"/></svg><svg width="20" height="20"><use href="#icoC"/></svg></div>C · 极光渐变<small>最鲜艳，和界面强调色一致</small></div>
+      </div></div>
+  </div>
+</div>
+
+<!-- ============ 深色 ============ -->
+<div class="stage dark">
+  <div class="wall"></div>
+  <div class="label">主窗口 · 深色（跟随系统自动切换）</div>
+  <div class="row">
+    <div class="win glass">
+      <div class="side">
+        <div class="brand"><svg width="40" height="40"><use href="#icoA"/></svg><div><b>熊猫下载器</b><span>PANDA DOWNLOADER</span></div></div>
+        <div class="nav on"><svg><use href="#i-down"/></svg>正在下载<span class="n">4</span></div>
+        <div class="nav"><svg><use href="#i-done"/></svg>已完成<span class="n">128</span></div>
+        <div class="sep">分类</div>
+        <div class="nav"><svg><use href="#i-video"/></svg>视频<span class="n">52</span></div>
+        <div class="nav"><svg><use href="#i-magnet"/></svg>BT 种子<span class="n">9</span></div>
+        <div class="nav"><svg><use href="#i-file"/></svg>文件<span class="n">67</span></div>
+        <div class="nav" style="margin-top:6px"><svg><use href="#i-gear"/></svg>设置</div>
+        <div class="gauge"><small>当前总速度</small><div class="v">10.9<i>MB/s</i></div>
+          <svg class="spark" viewBox="0 0 200 34" preserveAspectRatio="none"><path d="M0 26 C20 22 28 12 44 14 S70 24 88 16 110 6 128 10 150 20 168 8 190 6 200 9 V34 H0z" fill="url(#sf)"/><path d="M0 26 C20 22 28 12 44 14 S70 24 88 16 110 6 128 10 150 20 168 8 190 6 200 9" fill="none" stroke="url(#arrow)" stroke-width="2.200" stroke-linecap="round"/></svg></div>
+      </div>
+      <div class="main">
+        <div class="top"><h1>正在下载</h1><div class="search"><svg><use href="#i-link"/></svg>粘贴链接、磁力或视频网址，回车开始</div><div class="btn pri"><svg><use href="#i-plus"/></svg>新建</div></div>
+        <div class="seg"><span class="chip on">全部 4</span><span class="chip">下载中 3</span><span class="chip">已暂停 1</span><span class="sp">剩余约 9 分钟</span></div>
+        <div class="list">
+          <div class="item"><div class="ico i-bt"><svg><use href="#i-magnet"/></svg></div><div><div class="nm">ubuntu-24.04.3-desktop-amd64.iso</div><div class="meta"><span>1.1 GB / 5.9 GB</span><span class="tag o">BT · 93 人</span></div></div><div class="prog"><div class="bar"><i style="width:18%"></i></div><div class="l"><b>8.9 MB/s</b><span>剩余 9 分 19 秒</span></div></div></div>
+          <div class="item"><div class="ico i-vid"><svg><use href="#i-video"/></svg></div><div><div class="nm">4K 航拍 | 冰岛的夏天.mp4</div><div class="meta"><span>312 MB / 486 MB</span><span class="tag b">2160P</span></div></div><div class="prog"><div class="bar"><i style="width:64%"></i></div><div class="l"><b>1.2 MB/s</b><span>剩余 2 分 25 秒</span></div></div></div>
+          <div class="item"><div class="ico i-bt"><svg><use href="#i-magnet"/></svg></div><div><div class="nm">BigBuckBunny_124</div><div class="meta"><span>195 MB / 421 MB</span><span class="tag">HTTP 加速</span></div></div><div class="prog"><div class="bar"><i style="width:46%"></i></div><div class="l"><b>922 KB/s</b><span>剩余 4 分 11 秒</span></div></div></div>
+          <div class="item"><div class="ico i-exe"><svg><use href="#i-file"/></svg></div><div><div class="nm">blender-4.2.0-windows-x64.msi</div><div class="meta"><span>118 MB / 328 MB</span><span>已暂停</span></div></div><div class="prog"><div class="bar p"><i style="width:36%"></i></div><div class="l"><b>36%</b><span>可续传</span></div></div></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:26px">
+      <div><div class="label">悬浮窗</div><div class="pill glass"><div class="ring"><svg style="color:#fff"><use href="#ring"/></svg><svg style="position:absolute;inset:6px;width:20px;height:20px"><use href="#icoA"/></svg></div><span class="sp2">10.9<i>MB/s</i></span><span class="cnt">4</span></div></div>
+      <div><div class="label">桌面快捷方式（三个方案在深色壁纸上）</div>
+        <div class="desk"><div class="d"><svg><use href="#icoA"/></svg>熊猫下载器</div><div class="d"><svg><use href="#icoB"/></svg>熊猫下载器</div><div class="d"><svg><use href="#icoC"/></svg>熊猫下载器</div></div></div>
+      <div><div class="label">完成提示</div>
+        <div class="toast glass"><div class="frow"><div class="ok"><svg><use href="#i-check"/></svg></div><div><div class="nm">冰岛的夏天.mp4</div><div class="meta" style="margin-top:1px">486 MB · 视频</div></div></div>
+          <div class="acts"><div class="btn pri">播放</div><div class="btn"><svg><use href="#i-folder"/></svg>打开文件夹</div></div></div></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -5,33 +5,46 @@
 <title>熊猫下载器</title>
 <link rel="stylesheet" href="style.css">
 <style>
-  body.popup { padding: 8px; }
-  .head { height: 42px; padding: 0 6px 0 12px; gap: 8px; }
-  .total { font-size: 14px; font-weight: 600; }
+  body.popup { padding: 10px; }
+  .head { height: 46px; padding: 0 8px 0 12px; gap: 9px; }
+  .head .logo { width: 26px; height: 26px; border-radius: 8px; }
+  .total { font-family: var(--font-d); font-size: 16px; font-weight: 650; letter-spacing: -.01em; }
   .count { font-size: 12px; color: var(--text-2); }
-  .task { position: relative; padding: 9px 12px 10px; border-top: 1px solid var(--line); }
-  .task .top { display: flex; align-items: center; gap: 8px; height: 22px; }
-  .task .pct { font-size: 12px; color: var(--text-2); flex: none; }
+  #list { padding: 0 6px 6px; display: flex; flex-direction: column; gap: 6px; }
+  .task { position: relative; padding: 10px 12px 10px; border-radius: 14px; background: var(--bg-soft); }
+  .task .top { display: flex; align-items: center; gap: 8px; height: 22px; font-weight: 600; }
+  .task .pct { font-size: 12px; color: var(--text-2); flex: none; font-weight: 500; }
   .task .ops { display: none; gap: 0; margin-right: -6px; }
+  .task .ops button.icon { width: 24px; height: 24px; }
   .task:hover .ops { display: flex; }
   .task:hover .pct { display: none; }
-  .task .bar { margin: 6px 0 6px; }
-  .stats { display: flex; align-items: center; gap: 0; height: 16px; font-size: 11px; color: var(--text-2); white-space: nowrap; overflow: hidden; }
+  .task .bar { margin: 7px 0 7px; height: 5px; }
+  .stats { display: flex; align-items: center; gap: 0; height: 16px; font-size: 11.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; }
   .stats > span { flex-shrink: 0; }
   .stats > span:last-child { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .stats .err { color: var(--danger); }
-  .more { display: flex; align-items: center; justify-content: center; height: 34px; font-size: 12px; color: var(--accent-text); border-top: 1px solid var(--line); cursor: pointer; }
+  .more { display: flex; align-items: center; justify-content: center; height: 34px; font-size: 12px; font-weight: 600; color: var(--accent-text); border-radius: 12px; cursor: pointer; }
   .more:hover { background: var(--bg-hover); }
-  .drop { display: none; align-items: center; justify-content: center; gap: 6px; height: 40px; margin: 0 10px 10px; border: 1.5px dashed var(--accent); border-radius: var(--radius); font-size: 12px; color: var(--accent-text); background: var(--accent-soft); }
+  /* 删除后的撤销条 */
+  .gone { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 6px 0 12px; border-radius: 12px; background: var(--primary-bg); color: var(--primary-fg); font-size: 12px; position: relative; overflow: hidden; }
+  .gone span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gone button { height: 26px; padding: 0 10px; border-radius: 8px; border: none; box-shadow: none; font-size: 12px; font-weight: 600; background: rgba(127, 127, 127, 0.3); color: inherit; }
+  .gone button:hover { background: rgba(127, 127, 127, 0.45); }
+  .gone i { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--grad); }
+  .drop { display: none; align-items: center; justify-content: center; gap: 6px; height: 42px; margin: 0 6px 6px; border: 1.5px dashed var(--accent-2); border-radius: 12px; font-size: 12px; font-weight: 500; color: var(--accent-text); background: var(--accent-soft); }
   .drop svg { width: 16px; height: 16px; }
   body.dragging .drop { display: flex; }
-  .pill { display: none; position: relative; height: 38px; padding: 0 12px 0 10px; gap: 8px; cursor: pointer; }
-  .pill .total { font-size: 13px; }
-  .pill .pcount { flex: none; height: 18px; padding: 0 6px; border-radius: 999px; font-size: 11px; line-height: 18px; color: var(--text-2); background: var(--bg-hover); }
-  .pill.warn .pcount { color: var(--danger); }
-  .pill .pbar { position: absolute; left: 22px; right: 22px; bottom: 5px; height: 2px; border-radius: 2px; background: var(--line); overflow: hidden; }
-  .pill .pbar b { display: block; height: 100%; background: var(--accent); transition: width .4s; }
-  .pill:hover { background: var(--bg-hover); }
+  /* 小窗口：玻璃胶囊，图标外面一圈是总进度 */
+  .pill { display: none; position: relative; height: 44px; padding: 0 12px 0 6px; gap: 9px; cursor: pointer; }
+  .pill .ring { position: relative; width: 32px; height: 32px; flex: none; cursor: move; }
+  .pill .ring svg { position: absolute; inset: 0; width: 32px; height: 32px; transform: rotate(-90deg); pointer-events: none; }
+  .pill .ring img { position: absolute; inset: 5px; width: 22px; height: 22px; border-radius: 7px; }
+  .pill .ring .trk { stroke: var(--bg-active); }
+  .pill .ring .arc { stroke: url(#pg); transition: stroke-dashoffset .5s ease; }
+  .pill .total { font-size: 15px; }
+  .pill .total i { font-style: normal; font-size: 11px; font-weight: 500; color: var(--text-2); margin-left: 3px; }
+  .pill .pcount { flex: none; height: 20px; min-width: 20px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 20px; text-align: center; color: var(--text-2); background: var(--bg-active); }
+  .pill.warn .pcount { color: #fff; background: var(--danger); }
   body.collapsed .pill { display: flex; }
   body.collapsed .full { display: none; }
   body.collapsed .card { border-radius: 999px; }
@@ -44,10 +57,15 @@
 <body class="popup collapsed">
 <div class="card">
   <div class="pill row" data-act="expand" id="pill" title="点开查看每个任务">
-    <img class="logo" src="logo.png" alt="" style="width:18px;height:18px;cursor:move" data-tauri-drag-region title="按住拖动">
+    <div class="ring" data-tauri-drag-region title="按住拖动">
+      <svg viewBox="0 0 32 32" fill="none" stroke-width="3" stroke-linecap="round">
+        <defs><linearGradient id="pg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#17d3a0"/><stop offset="1" stop-color="#25b7ff"/></linearGradient></defs>
+        <circle class="trk" cx="16" cy="16" r="14"/><circle class="arc" id="pillArc" cx="16" cy="16" r="14" stroke-dasharray="87.96" stroke-dashoffset="87.96"/>
+      </svg>
+      <img src="logo.png" alt="" data-tauri-drag-region>
+    </div>
     <span class="total num grow" id="pillText"></span>
     <span class="pcount num" id="pillCount"></span>
-    <i class="pbar"><b id="pillBar"></b></i>
   </div>
   <div class="full">
     <div class="head row" data-tauri-drag-region id="head">

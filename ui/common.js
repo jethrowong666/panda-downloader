@@ -59,18 +59,30 @@ const ICON = {
   history: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>',
 };
 
-// 文件类型图标（完成窗、主窗口用）
+// 文件类型图标：渐变色块 + 白色线条（各窗口共用）。BT 任务用 "bt"。
 const CAT = {
-  archive: ["#f2a83b", "压缩包"], video: ["#7a5cff", "视频"], audio: ["#ef5d8a", "音乐"],
-  program: ["#3b82f6", "程序"], document: ["#10b98a", "文档"], image: ["#f06a3b", "图片"], other: ["#8a919c", "文件"],
+  archive: ["#ff9a3d", "压缩包"], video: ["#5d8bff", "视频"], audio: ["#f0508f", "音乐"],
+  program: ["#2f7dff", "程序"], document: ["#18b0c9", "文档"], image: ["#ff6f5e", "图片"], other: ["#6d7686", "文件"], bt: ["#ff5d7a", "BT"],
+};
+const GLYPH = {
+  bt: '<path d="M6 4v8a6 6 0 0 0 12 0V4h-4v8a2 2 0 0 1-4 0V4zM6 8h4M14 8h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  video: '<rect x="3" y="5" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 9.3v5.4l4.6-2.7z" fill="currentColor"/>',
+  audio: '<path d="M9 18V6l10-2v12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16.5" cy="16" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/>',
+  archive: '<path d="M4 8l8-4 8 4v8l-8 4-8-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M4 8l8 4 8-4M12 12v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  program: '<rect x="3" y="4" width="18" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 9h18" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 13.5l2 2-2 2M13 17.5h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  document: '<path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 3v5h5M9 13h6M9 17h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="10" r="1.8" fill="currentColor"/><path d="M4 18l5-5 4 4 3-3 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  other: '<path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 3v5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
 };
 function fileBadge(cat, size = 36) {
-  const [color] = CAT[cat] || CAT.other;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 36 36"><path d="M9 3h12l8 8v20a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="${color}" opacity=".16"/><path d="M9 3h12l8 8v20a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="none" stroke="${color}" stroke-width="1.6"/><path d="M21 3v6a2 2 0 0 0 2 2h6" fill="none" stroke="${color}" stroke-width="1.6"/></svg>`;
+  const c = GLYPH[cat] ? cat : "other";
+  return `<span class="fico c-${c}" style="--s:${size}px"><svg viewBox="0 0 24 24">${GLYPH[c]}</svg></span>`;
 }
+/** 任务用哪种图标：BT 任务统一用磁铁。 */
+const badgeOf = (t, size) => fileBadge(t.bt ? "bt" : t.category, size);
 
 Object.assign(ICON, {
-  magnet: '<svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="#e0533d" stroke-width="2.2" stroke-linejoin="round"><rect x="3" y="3" width="30" height="30" rx="8" fill="#e0533d" opacity=".12" stroke="none"/><path d="M10 9v9a8 8 0 0 0 16 0V9h-5v9a3 3 0 0 1-6 0V9z"/><path d="M10 13h5M21 13h5"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>',
   link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   inbox: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10M8 9l4 4 4-4"/><path d="M4 14v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>',

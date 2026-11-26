@@ -177,6 +177,12 @@ pub fn show_main(app: AppHandle) {
     windows::show_main(&app);
 }
 
+/// 程序版本号（设置页底部显示）。
+#[tauri::command]
+pub fn app_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
 #[tauri::command]
 pub fn free_space(dir: String) -> Option<u64> {
     sys::free_space(std::path::Path::new(&dir))

@@ -94,6 +94,7 @@ fn main() {
             commands::fit_window,
             commands::show_main,
             commands::free_space,
+            commands::app_version,
         ])
         .setup(move |app| {
             let data_dir = app.path().app_data_dir()?;

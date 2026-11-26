@@ -6,10 +6,10 @@
 use tauri::{AppHandle, LogicalPosition, Manager, WebviewUrl, WebviewWindowBuilder};
 
 /// 悬浮窗默认是小窗口（只显示总速度），点开后变宽。
-const FLOAT_PILL_W: f64 = 176.0;
-const FLOAT_PILL_H: f64 = 56.0;
-const DONE_W: f64 = 360.0;
-const CONFIRM_W: f64 = 480.0;
+const FLOAT_PILL_W: f64 = 172.0;
+const FLOAT_PILL_H: f64 = 64.0;
+const DONE_W: f64 = 372.0;
+const CONFIRM_W: f64 = 488.0;
 const MARGIN: f64 = 16.0;
 
 /// 主显示器的可用区域（不含任务栏），逻辑像素：(x, y, 宽, 高, 缩放)。
@@ -172,6 +172,18 @@ pub fn open_confirm(app: &AppHandle, group: u64) {
         });
 }
 
+/// 系统支不支持 Mica 毛玻璃（Windows 11）。
+fn has_mica() -> bool {
+    #[cfg(windows)]
+    {
+        windows_version::OsVersion::current().build >= 22000
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
+}
+
 pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
@@ -179,11 +191,18 @@ pub fn show_main(app: &AppHandle) {
         let _ = w.set_focus();
         return;
     }
-    let _ = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("main.html".into()))
+    // Win11（22000 以上）有系统毛玻璃 Mica：窗口透明，让它透出桌面的颜色。
+    // Win10 没有，窗口保持不透明，页面自己画底色（不然会直接看到后面的桌面）。
+    let mica = has_mica();
+    let page = if mica { "main.html?mica=1" } else { "main.html" };
+    let mut b = WebviewWindowBuilder::new(app, "main", WebviewUrl::App(page.into()))
         .title("熊猫下载器")
-        .inner_size(960.0, 640.0)
-        .min_inner_size(720.0, 480.0)
+        .inner_size(1000.0, 660.0)
+        .min_inner_size(780.0, 500.0)
         .center()
-        .disable_drag_drop_handler()
-        .build();
+        .disable_drag_drop_handler();
+    if mica {
+        b = b.transparent(true).effects(tauri::window::EffectsBuilder::new().effect(tauri::window::Effect::Mica).build());
+    }
+    let _ = b.build();
 }

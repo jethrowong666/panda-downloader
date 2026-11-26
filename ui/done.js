@@ -1,11 +1,11 @@
 // 右下角完成窗：主按钮按文件类型变化（播放、解压、扫描并运行……），10 秒后自动收起。
-const W = 360, LIFETIME = 10000;
+const W = 372, LIFETIME = 10000;
 let items = [];
 let shownAt = Date.now();
 let hovering = false;
 let busy = false;
 
-$("#ok").innerHTML = ICON.done;
+$("#ok").innerHTML = ICON.check;
 $("#closeBtn").innerHTML = ICON.x;
 
 const SHORT = { extract: "解压", play: "播放", install: "运行", view: "查看", open: "打开" };
@@ -20,7 +20,7 @@ function render(all) {
     const t = items[0];
     $("#title").textContent = "下载完成";
     $("#content").innerHTML = `
-      <div class="one">${fileBadge(t.category, 40)}
+      <div class="one">${badgeOf(t, 44)}
         <div class="grow col"><div class="name ellipsis" title="${esc(t.name)}">${esc(t.name)}</div>
         <div class="small muted num">${human(t.total ?? t.downloaded)}<span class="dot">${t.bt && t.bt.files > 1 ? `文件夹 · ${t.bt.files} 个文件` : esc(CAT[t.category]?.[1] || "文件")}</span></div></div></div>
       <div class="acts"><button class="primary" data-act="primary" data-id="${t.id}">${esc(t.action_label)}</button>
@@ -28,7 +28,7 @@ function render(all) {
       <div class="hint">按 Enter ${esc(t.action_label)}，10 秒后自动收起</div>`;
   } else {
     $("#title").textContent = `${items.length} 个文件已下载完成`;
-    $("#content").innerHTML = `<div class="many">${items.slice(0, 5).map((t) => `<div class="item">${fileBadge(t.category, 24)}
+    $("#content").innerHTML = `<div class="many">${items.slice(0, 5).map((t) => `<div class="item">${badgeOf(t, 26)}
       <span class="grow ellipsis" title="${esc(t.name)}">${esc(t.name)}</span>
       <button class="link" data-act="primary" data-id="${t.id}">${SHORT[t.action] || "打开"}</button>
       <button class="icon" data-act="folder" data-id="${t.id}" title="打开文件夹">${ICON.folder}</button></div>`).join("")}</div>
