@@ -177,6 +177,66 @@ pub fn show_main(app: AppHandle) {
     windows::show_main(&app);
 }
 
+#[derive(serde::Serialize)]
+pub struct BrowserInfo {
+    id: &'static str,
+    name: &'static str,
+}
+
+#[derive(serde::Serialize)]
+pub struct ExtInfo {
+    /// 扩展文件夹（安装向导要用户在浏览器里选它）。
+    dir: Option<String>,
+    browsers: Vec<BrowserInfo>,
+    /// 扩展最近一次连上来的时间（Unix 秒）：这次运行里的，或者以前记下的。
+    seen: Option<u64>,
+    /// 这次运行里扩展连上来过（= 现在就能用）。
+    connected: bool,
+    now: u64,
+    hint_off: bool,
+}
+
+/// 浏览器扩展的安装情况。
+#[tauri::command]
+pub fn ext_info(m: M) -> ExtInfo {
+    let live = crate::bridge::extension_seen();
+    let s = m.settings();
+    ExtInfo {
+        dir: sys::extension_dir().map(|p| p.display().to_string()),
+        browsers: sys::browsers().into_iter().map(|(id, name, _, _)| BrowserInfo { id, name }).collect(),
+        seen: live.or(Some(s.ext_seen).filter(|t| *t > 0)),
+        connected: live.is_some(),
+        now: crate::store::now_secs(),
+        hint_off: s.ext_hint_off,
+    }
+}
+
+/// 安装向导的第一步：打开浏览器，并把"扩展管理页"的地址放进剪贴板。
+/// 浏览器不接受从外面直接打开这个内部页面（只会开一个新标签页），所以让用户在地址栏粘贴。返回这个地址。
+#[tauri::command]
+pub fn ext_install(browser: String) -> Result<String, String> {
+    sys::extension_dir().ok_or("没找到扩展文件夹，请重新安装熊猫下载器")?;
+    let (_, name, exe, url) = sys::browsers().into_iter().find(|b| b.0 == browser).ok_or("没找到这个浏览器")?;
+    let url = url.trim_end_matches('/').to_string();
+    arboard::Clipboard::new().and_then(|mut c| c.set_text(url.clone())).map_err(|e| format!("复制失败：{e}"))?;
+    std::process::Command::new(exe).spawn().map_err(|e| format!("打不开 {name}：{e}"))?;
+    Ok(url)
+}
+
+/// 浏览器里是不是已经打开了扩展管理页。
+#[tauri::command]
+pub fn ext_page_open() -> bool {
+    sys::extensions_page_open()
+}
+
+/// 只把扩展文件夹的路径再复制一次。
+#[tauri::command]
+pub fn ext_copy_path() -> Result<String, String> {
+    let dir = sys::extension_dir().ok_or("没找到扩展文件夹")?.display().to_string();
+    arboard::Clipboard::new().and_then(|mut c| c.set_text(dir.clone())).map_err(|e| format!("复制失败：{e}"))?;
+    Ok(dir)
+}
+
 /// 程序版本号（设置页底部显示）。
 #[tauri::command]
 pub fn app_version() -> &'static str {

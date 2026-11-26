@@ -118,12 +118,28 @@ struct AppState {
     token: String,
 }
 
+/// 浏览器扩展最近一次来访的时间（Unix 秒，0 = 这次运行还没来过）。
+static EXT_SEEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// 扩展最近一次连上来是什么时候（Unix 秒）。
+pub fn extension_seen() -> Option<u64> {
+    match EXT_SEEN.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => None,
+        t => Some(t),
+    }
+}
+
 fn authorized(s: &AppState, h: &HeaderMap) -> bool {
     // 网页 JS 发的请求一定带 Origin；panda-host 不带。
     if h.contains_key("origin") {
         return false;
     }
-    h.get("x-panda-token").and_then(|v| v.to_str().ok()).is_some_and(|t| t == s.token)
+    let ok = h.get("x-panda-token").and_then(|v| v.to_str().ok()).is_some_and(|t| t == s.token);
+    if ok {
+        EXT_SEEN.store(crate::store::now_secs(), std::sync::atomic::Ordering::Relaxed);
+        s.m.note_extension_seen();
+    }
+    ok
 }
 
 async fn ping(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Reply>, StatusCode> {

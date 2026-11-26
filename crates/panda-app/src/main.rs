@@ -95,6 +95,10 @@ fn main() {
             commands::show_main,
             commands::free_space,
             commands::app_version,
+            commands::ext_info,
+            commands::ext_install,
+            commands::ext_copy_path,
+            commands::ext_page_open,
         ])
         .setup(move |app| {
             let data_dir = app.path().app_data_dir()?;

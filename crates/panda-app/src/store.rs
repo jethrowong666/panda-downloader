@@ -29,6 +29,10 @@ pub struct Settings {
     pub float_anchor: Option<(i32, i32)>,
     /// 外观："system" 跟随系统、"light" 浅色、"dark" 深色。
     pub theme: String,
+    /// 浏览器扩展最近一次连上来的时间（Unix 秒，0 = 从来没有）。用来判断要不要提示安装扩展。
+    pub ext_seen: u64,
+    /// 用户关掉了"安装浏览器扩展"的提示。
+    pub ext_hint_off: bool,
     /// BT 监听端口（第一次用 BT 时随机选一个固定下来，0 = 还没选）。
     pub bt_port: u16,
 }
@@ -50,6 +54,8 @@ impl Default for Settings {
             float_pos: None,
             float_anchor: None,
             bt_port: 0,
+            ext_seen: 0,
+            ext_hint_off: false,
             theme: "system".into(),
         }
     }

@@ -551,6 +551,16 @@ impl Manager {
         self.inner.lock().unwrap().settings = s;
     }
 
+    /// 浏览器扩展连上来了：记到设置里（一天最多写一次盘）。
+    pub fn note_extension_seen(&self) {
+        let now = store::now_secs();
+        let mut g = self.inner.lock().unwrap();
+        if now.saturating_sub(g.settings.ext_seen) > 24 * 3600 {
+            g.settings.ext_seen = now;
+            store::save(&self.data_dir.join("settings.json"), &g.settings);
+        }
+    }
+
     /// 记住悬浮窗的右边缘和上边缘（物理像素）。
     pub fn save_float_pos(&self, right: i32, top: i32) {
         let mut g = self.inner.lock().unwrap();

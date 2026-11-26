@@ -20,7 +20,20 @@ const settings = { takeover: true };
 chrome.storage.local.get({ takeover: true }).then((s) => Object.assign(settings, s));
 chrome.storage.onChanged.addListener((c) => { if (c.takeover) settings.takeover = c.takeover.newValue; });
 
+// 商店版屏蔽的网站。普通版是空的；打包 Chrome 商店版时由 scripts/pack_extension.py 填上 YouTube
+// （Chrome 应用商店不允许扩展下载 YouTube 视频）。
+const STORE_BLOCK = [];
+const STORE_BLOCK_MSG = "应 Chrome 应用商店的规定，这个版本的扩展不支持 YouTube";
+function blocked(url) {
+  if (!STORE_BLOCK.length || !url) return false;
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    return STORE_BLOCK.some((s) => h === s || h.endsWith("." + s));
+  } catch { return false; }
+}
+
 function isVideoSite(url) {
+  if (blocked(url)) return false;
   try {
     const h = new URL(url).hostname.toLowerCase();
     return VIDEO_SITES.some((s) => h === s || h.endsWith("." + s));
@@ -37,6 +50,10 @@ function native(msg) {
     } catch (e) { resolve({ ok: false, error: String(e) }); }
   });
 }
+
+// 扩展刚装上、刚更新、浏览器刚启动时向熊猫下载器报到（软件里的安装向导靠它显示"已连接"）
+chrome.runtime.onInstalled.addListener(() => { native({ cmd: "ping" }); });
+chrome.runtime.onStartup.addListener(() => { native({ cmd: "ping" }); });
 
 // 取这些网址能用到的 Cookie（下载需要登录的文件、抖音等网站解析都靠它）
 async function cookiesFor(urls) {
@@ -123,6 +140,7 @@ function classify(url, ct, len, type) {
 
 chrome.webRequest.onResponseStarted.addListener((d) => {
   if (d.tabId < 0 || d.statusCode >= 400 || /^(blob|data):/.test(d.url)) return;
+  if (blocked(d.url) || blocked(d.initiator)) return;
   const len = +header(d.responseHeaders, "content-length") || 0;
   const range = header(d.responseHeaders, "content-range");
   const total = range ? +range.split("/")[1] || len : len;
@@ -162,6 +180,7 @@ async function askPage(tabId, fromContextMenu) {
 
 // 下载某个标签页里的视频。page：页面脚本已经找到的视频地址。
 async function downloadTabVideo(tab, srcHint, page, fromContextMenu, direct) {
+  if (blocked(tab?.url) || blocked(page) || blocked(srcHint)) return { ok: false, error: STORE_BLOCK_MSG };
   if (!page && !direct) ({ page, direct } = await askPage(tab.id, fromContextMenu));
   // 抖音：直接下载播放器正在放的 mp4（带上来源页和 Cookie）
   if (direct?.url) {
@@ -194,7 +213,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   let r;
   if (info.menuItemId === "link") {
     const video = isVideoSite(info.linkUrl);
-    r = await sendToApp([{ url: info.linkUrl, video }], tab?.url);
+    r = blocked(info.linkUrl) ? { ok: false, error: STORE_BLOCK_MSG } : await sendToApp([{ url: info.linkUrl, video }], tab?.url);
   } else if (info.menuItemId === "media" || info.menuItemId === "pageVideo") {
     r = await downloadTabVideo(tab, info.srcUrl, null, info.menuItemId === "media");
   } else if (info.menuItemId === "allLinks") {

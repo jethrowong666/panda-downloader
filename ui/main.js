@@ -8,6 +8,8 @@ let flt = "all";          // 正在下载的筛选：all | running | paused
 let cat = "";             // 已完成的分类筛选（空 = 全部）
 let query = "";           // 已完成的搜索词
 const samples = [];       // 最近一分钟的总速度，画曲线用
+let ext = null;           // 浏览器扩展的安装情况
+let wiz = null;           // 安装向导：{ step: "pick" | "url" | "steps", browser, url, since }
 
 // Win11 有系统毛玻璃时窗口是透明的
 if (new URLSearchParams(location.search).get("mica")) document.documentElement.classList.add("mica");
@@ -149,8 +151,8 @@ function render() {
          <span class="sum num">${leftText}</span>
          ${paused.length ? `<button data-act="resumeAll">${ICON.play}全部开始</button>` : ""}${running.length ? `<button data-act="pauseAll">${ICON.pause}全部暂停</button>` : ""}`
       : "");
-    morph(main, list.length ? `<div class="list">${list.map(activeRow).join("")}</div>`
-      : empty("没有正在下载的任务", ["复制一个下载链接或磁力链接，确认窗口会自动弹出", "也可以按 <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>D</kbd> 下载剪贴板里的链接"]));
+    morph(main, extHint() + (list.length ? `<div class="list">${list.map(activeRow).join("")}</div>`
+      : empty("没有正在下载的任务", ["复制一个下载链接或磁力链接，确认窗口会自动弹出", "也可以按 <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>D</kbd> 下载剪贴板里的链接"])));
   } else if (tab === "done") {
     const q = query.trim().toLowerCase();
     const list = history.filter((h) => (!cat || catOf(nameOf(h)) === cat) && (!q || nameOf(h).toLowerCase().includes(q)));
@@ -196,6 +198,9 @@ function renderSettings(main) {
       ${row("每个任务的连接数", "连接越多通常越快，个别服务器会限制连接数", `<input type="number" id="conns" min="1" max="32" value="${s.connections}" style="width:88px">`)}
       ${row("全局限速", "所有任务加起来的最高速度，0 表示不限速；改完马上生效", `<input type="number" id="limit" min="0" step="0.5" value="${+(s.speed_limit / 1048576).toFixed(1)}" style="width:88px"><span class="unit">MB/s</span>`)}
     </div></div>
+    <div class="group"><h3>浏览器扩展</h3><div class="box">
+      ${row("网页视频下载、接管浏览器下载", extStatusText(), `<button data-act="wizard">${ext?.seen ? "重新安装" : "安装扩展"}</button>`)}
+    </div></div>
     <div class="group"><h3>外观</h3><div class="box">
       ${row("主题", "深色模式下所有窗口一起变暗", `<div class="segc">${[["system", "跟随系统"], ["light", "浅色"], ["dark", "深色"]].map(([k, l]) => `<span class="${(s.theme || "system") === k ? "on" : ""}" data-act="theme" data-key="${k}">${l}</span>`).join("")}</div>`)}
     </div></div>
@@ -211,6 +216,75 @@ function renderSettings(main) {
   requestAnimationFrame(() => renderPaths(main));
   $("#conns").addEventListener("change", (e) => { const v = Math.max(1, Math.min(32, Math.round(+e.target.value) || 8)); e.target.value = v; save({ connections: v }); });
   $("#limit").addEventListener("change", (e) => { const v = Math.max(0, +e.target.value || 0); e.target.value = v; save({ speed_limit: Math.round(v * 1048576) }); });
+}
+
+// ---------- 浏览器扩展：提示条 + 安装向导 ----------
+function extStatusText() {
+  if (!ext) return "";
+  if (ext.connected) return "已连接，可以在网页视频上点「熊猫下载」";
+  if (ext.seen) return `已安装（上次连接：${when(ext.seen)}）。打开浏览器后会自动连上`;
+  return "还没有安装。浏览器不允许软件替你安装扩展，跟着向导点三下就好";
+}
+
+// 从来没连上过扩展、也没关掉过提示：在任务列表上面提醒一次
+function extHint() {
+  if (!ext || ext.seen || ext.hint_off || !ext.browsers.length) return "";
+  return `<div class="hintbar" data-key="exthint"><span class="hi">${ICON.window}</span>
+    <div class="grow"><b>装上浏览器扩展，网页视频一键下载</b><small>抖音、B 站、YouTube 等网站的视频上会出现「熊猫下载」按钮，还能接管浏览器的下载</small></div>
+    <button class="primary" data-act="wizard">安装</button><button class="icon" data-act="hintOff" title="不再提示">${ICON.x}</button></div>`;
+}
+
+async function loadExt() {
+  ext = await invoke("ext_info").catch(() => null);
+  if (wiz) renderWizard();
+}
+
+function renderWizard() {
+  const mask = $("#wizMask");
+  mask.hidden = !wiz;
+  if (!wiz || !ext) return;
+  const b = ext.browsers.find((x) => x.id === wiz.browser);
+  // 打开向导之后扩展连上来了，才算这次装好了
+  const done = ext.connected && ext.seen >= wiz.since;
+  if (wiz.step === "pick") {
+    $("#wiz").innerHTML = `<h3>安装浏览器扩展</h3>
+      <div class="lead">浏览器不允许软件替你安装扩展，需要你自己点三下。先选一个浏览器：</div>
+      ${ext.browsers.length ? `<div class="pick">${ext.browsers.map((x) => `<button data-act="wizGo" data-key="${x.id}">${esc(x.name)}</button>`).join("")}</div>`
+        : `<div class="notice">没有找到 Edge、Chrome 或 Brave。装好浏览器后再来。</div>`}
+      <div class="foot"><span class="grow"></span><button data-act="wizClose">以后再说</button></div>`;
+    return;
+  }
+  if (wiz.step === "url") {
+    $("#wiz").innerHTML = `<h3>第一步：打开扩展管理页</h3>
+      <div class="lead">${esc(b?.name || "浏览器")} 已经打开，地址也复制好了。</div>
+      <ol>
+        <li><i>1</i><div>在浏览器最上面的地址栏里点一下，按 <kbd>Ctrl</kbd> <kbd>V</kbd> 粘贴，再按回车<small>粘贴出来的是 ${esc(wiz.url)}</small></div></li>
+      </ol>
+      <div class="state"><span class="spin"></span><span>打开扩展管理页后，这里会自动进入下一步</span></div>
+      <div class="foot"><button data-act="wizGo" data-key="${esc(wiz.browser)}">再复制一次地址</button><span class="grow"></span>
+        <button data-act="wizNext">我已经打开了</button><button data-act="wizClose">关闭</button></div>`;
+    return;
+  }
+  const dev = wiz.browser === "edge" ? "页面左侧" : "页面右上角";
+  $("#wiz").innerHTML = `<h3>第二步：在扩展管理页点三下</h3>
+    <div class="lead">扩展文件夹的路径已经复制好了。</div>
+    <ol>
+      <li><i>1</i><div>打开「开发人员模式」开关<small>在${dev}</small></div></li>
+      <li><i>2</i><div>点「加载解压缩的扩展」<small>开关打开后，这个按钮才会出现</small></div></li>
+      <li><i>3</i><div>在弹出的窗口里按 <kbd>Ctrl</kbd> <kbd>V</kbd> 粘贴路径，按回车，再点「选择文件夹」</div></li>
+    </ol>
+    <div class="state ${done ? "ok" : ""}">${done ? `${ICON.done}<span>装好了，扩展已经连上。在网页视频上会出现「熊猫下载」按钮</span>` : `<span class="spin"></span><span>正在等扩展连上来…装好后这里会自动变绿</span>`}</div>
+    <div class="pathbox">${esc(ext.dir || "")}</div>
+    <div class="foot"><button data-act="wizCopy">再复制一次路径</button><button data-act="wizGo" data-key="${esc(wiz.browser)}">回到上一步</button><span class="grow"></span>
+      <button class="${done ? "primary" : ""}" data-act="wizClose">${done ? "完成" : "关闭"}</button></div>`;
+}
+
+// 扩展管理页打开了：把扩展文件夹的路径换进剪贴板，进入"点三下"这一步
+async function wizToSteps() {
+  if (!wiz || wiz.step !== "url") return;
+  wiz.step = "steps";
+  try { await invoke("ext_copy_path"); } catch (e) { toast(String(e)); }
+  renderWizard();
 }
 
 async function save(patch) {
@@ -254,6 +328,20 @@ onAct(document.body, {
   forget: async (_, el) => { await invoke("remove_history", { path: history[+el.dataset.i].path }); loadHistory(); },
   toggle: (_, el) => save({ [el.dataset.key]: !settings[el.dataset.key] }),
   theme: (_, el) => save({ theme: el.dataset.key }),
+  wizard: async () => { await loadExt(); wiz = { step: "pick", browser: "", since: ext?.now || 0 }; renderWizard(); },
+  wizGo: async (_, el) => {
+    try {
+      const already = wiz?.step === "url" && wiz.browser === el.dataset.key;
+      const url = await invoke("ext_install", { browser: el.dataset.key });
+      wiz = { step: "url", browser: el.dataset.key, url, since: wiz?.since || ext?.now || 0 };
+      renderWizard();
+      if (already) toast("地址已复制");
+    } catch (e) { toast(String(e), 4000); }
+  },
+  wizNext: wizToSteps,
+  wizCopy: async () => { try { await invoke("ext_copy_path"); toast("路径已复制"); } catch (e) { toast(String(e)); } },
+  wizClose: () => { wiz = null; renderWizard(); render(); },
+  hintOff: () => { ext.hint_off = true; save({ ext_hint_off: true }); render(); },
   pickBase: async () => { const p = await invoke("pick_folder", { start: settings.base_dir }); if (p) save({ base_dir: p, category_dirs: {} }); },
 });
 $("#link").addEventListener("keydown", (e) => { if (e.key === "Enter") addLink(); });
@@ -265,7 +353,18 @@ async function loadHistory() { history = await invoke("history"); render(); }
   version = await invoke("app_version").catch(() => "");
   tasks = await invoke("tasks");
   history = await invoke("history");
+  await loadExt();
   render();
+  // 扩展的连接状态：平时半分钟看一次，开着安装向导时每 2 秒看一次
+  let extTick = 0;
+  setInterval(async () => {
+    extTick++;
+    if (!wiz && extTick % 15) return;
+    if (wiz?.step === "url" && (await invoke("ext_page_open").catch(() => false))) await wizToSteps();
+    const before = JSON.stringify(ext);
+    await loadExt();
+    if (!wiz && JSON.stringify(ext) !== before && tab !== "done") render();
+  }, 2000);
   renderGauge();
   listen("tasks", (all) => {
     const doneBefore = tasks.filter((t) => t.status === "done").length;

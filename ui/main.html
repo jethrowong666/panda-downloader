@@ -117,6 +117,29 @@
   .switch::after { content: ""; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .18s; box-shadow: 0 2px 5px rgba(0, 0, 0, .25); }
   .switch.on { background: var(--grad-btn); }
   .switch.on::after { left: 21px; }
+  /* 安装浏览器扩展：提示条 + 向导 */
+  .hintbar { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 14px; margin-bottom: 10px; border-radius: 16px; border: 1px solid var(--edge);
+    background: linear-gradient(90deg, rgba(23, 211, 160, 0.16), rgba(37, 183, 255, 0.16)); box-shadow: var(--hi); }
+  .hintbar .hi { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; color: #fff; background: var(--grad-btn); flex: none; }
+  .hintbar .hi svg { width: 19px; height: 19px; }
+  .hintbar b { display: block; font-size: 13.5px; font-weight: 600; }
+  .hintbar small { display: block; font-size: 12px; color: var(--text-2); }
+  .hintbar button { height: 32px; border-radius: 10px; }
+  .mask { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(10, 14, 22, 0.32); backdrop-filter: blur(6px); }
+  .wiz { width: 520px; max-width: calc(100% - 48px); border-radius: 22px; padding: 22px 22px 18px; background: var(--bg); border: 1px solid var(--edge); box-shadow: var(--shadow), var(--hi); }
+  .wiz h3 { margin: 0 0 4px; font-family: var(--font-d); font-size: 18px; font-weight: 680; }
+  .wiz .lead { font-size: 12.5px; color: var(--text-2); margin-bottom: 16px; }
+  .wiz .pick { display: flex; gap: 10px; }
+  .wiz .pick button { flex: 1; height: 54px; border-radius: 14px; font-size: 14px; font-weight: 600; }
+  .wiz ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .wiz li { display: flex; gap: 12px; align-items: flex-start; padding: 11px 12px; border-radius: 14px; background: var(--bg-soft); font-size: 13px; line-height: 1.55; }
+  .wiz li i { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 12px; font-weight: 700; color: #fff; background: var(--grad-btn); }
+  .wiz li small { display: block; color: var(--text-2); font-size: 12px; }
+  .wiz .state { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 11px 14px; border-radius: 14px; font-size: 13px; font-weight: 600; background: var(--warn-soft); color: var(--warn-text); }
+  .wiz .state.ok { background: var(--accent-soft); color: var(--accent-text); }
+  .wiz .state svg { width: 18px; height: 18px; }
+  .wiz .foot { display: flex; gap: 8px; margin-top: 16px; align-items: center; }
+  .wiz .pathbox { font-size: 11.5px; color: var(--text-3); margin-top: 8px; word-break: break-all; }
   .segc { display: inline-flex; padding: 3px; border-radius: 11px; background: var(--bg-active); gap: 2px; }
   .segc span { height: 28px; padding: 0 14px; border-radius: 8px; font-size: 12.5px; color: var(--text-2); display: inline-flex; align-items: center; cursor: pointer; }
   .segc span.on { background: var(--panel-hi); color: var(--text); font-weight: 600; box-shadow: var(--shadow-sm), var(--hi); }
@@ -153,6 +176,7 @@
   </div>
   <div class="bar-tools" id="tools"></div>
   <main id="main"></main>
+  <div class="mask" id="wizMask" hidden><div class="wiz" id="wiz"></div></div>
   <div class="undo" id="undo"><span class="msg" id="undoMsg"></span><button data-act="undoAll">撤销</button><i class="tm" id="undoTm"></i></div>
 </section>
 <script src="common.js"></script>

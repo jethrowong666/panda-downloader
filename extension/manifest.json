@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "熊猫下载器",
   "description": "用熊猫下载器接管浏览器下载、嗅探网页视频：多连接加速、断点续传、音视频自动合并。",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxDYdaq17rZiIYBOwnaVxPkDDP/2aZwo5STxoaSIjwLXiIPAgkQ8HAt5SXf0VugLR9FMfOLDx2+EIB3fpKc6KQ7s46n/UoE03vdaEW3saijSDS/OfNEWWHAX7YBM6UVorp6FGIxnn5UmDmyEWNprIxNiTrGpjfW3OAwnh4O1GJhpNLybbpCetk8NM31H+PdWOip5dxId+HZ5OcrMZLGrMkncEIsjLV45NSF7pc0+XZEAQ+HC1hlhIVWZuNp6VJHIjRocSelE94oLkatr5917y4/5E8lZZU0uomIRAoLDP+rUSq5lUpQxOavzM7njWtDFEMUcc9Bfim8eYleoOc5j3uQIDAQAB",
   "minimum_chrome_version": "116",
   "icons": {

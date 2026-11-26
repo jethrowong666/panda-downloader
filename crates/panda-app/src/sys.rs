@@ -72,6 +72,70 @@ pub fn reveal(path: &Path) -> Result<(), String> {
 
 /// 给下载的文件打上"来自网络"标记（Zone.Identifier），
 /// 这样 Windows SmartScreen 和 Office 受保护视图会照常检查它，和浏览器下载的文件一样安全。
+/// 随安装包一起装的浏览器扩展文件夹（开发时是项目里的 extension）。
+pub fn extension_dir() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let mut dir = exe.parent()?.to_path_buf();
+    for _ in 0..4 {
+        let p = dir.join("extension");
+        if p.join("manifest.json").is_file() {
+            return Some(p);
+        }
+        dir = dir.parent()?.to_path_buf();
+    }
+    None
+}
+
+/// 本机装了哪些能装扩展的浏览器：(代号, 名称, 程序路径, 扩展管理页地址)。
+pub fn browsers() -> Vec<(&'static str, &'static str, PathBuf, &'static str)> {
+    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
+    let roots: Vec<PathBuf> = [env("ProgramFiles"), env("ProgramFiles(x86)"), env("LOCALAPPDATA")].into_iter().flatten().collect();
+    let known: [(&str, &str, &str, &str); 3] = [
+        ("edge", "Microsoft Edge", r"Microsoft\Edge\Application\msedge.exe", "edge://extensions/"),
+        ("chrome", "Google Chrome", r"Google\Chrome\Application\chrome.exe", "chrome://extensions/"),
+        ("brave", "Brave", r"BraveSoftware\Brave-Browser\Application\brave.exe", "brave://extensions/"),
+    ];
+    let mut out = Vec::new();
+    for (id, name, rel, url) in known {
+        if let Some(p) = roots.iter().map(|r| r.join(rel)).find(|p| p.is_file()) {
+            out.push((id, name, p, url));
+        }
+    }
+    out
+}
+
+/// 有没有哪个浏览器窗口正开着"扩展管理页"（看窗口标题）。安装向导用它自动进入下一步。
+pub fn extensions_page_open() -> bool {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextW, IsWindowVisible};
+        unsafe extern "system" fn each(h: HWND, found: LPARAM) -> BOOL {
+            if IsWindowVisible(h) == 0 {
+                return 1;
+            }
+            let mut buf = [0u16; 256];
+            let n = GetWindowTextW(h, buf.as_mut_ptr(), buf.len() as i32);
+            if n <= 0 {
+                return 1;
+            }
+            let title = String::from_utf16_lossy(&buf[..n as usize]);
+            let browser = title.contains("Edge") || title.contains("Chrome") || title.contains("Brave");
+            // 中文："扩展 - … Edge"、"扩展程序 - Google Chrome"；英文："Extensions - …"
+            if browser && (title.starts_with("扩展") || title.starts_with("Extensions")) {
+                *(found as *mut bool) = true;
+                return 0;
+            }
+            1
+        }
+        let mut found = false;
+        unsafe { EnumWindows(Some(each), &mut found as *mut bool as LPARAM) };
+        found
+    }
+    #[cfg(not(windows))]
+    false
+}
+
 /// 防火墙里有没有本程序的规则（安装包加的"PandaDownloader"，或者用户以前在弹窗里点过的）。
 /// 有规则时监听端口不会再弹"是否允许访问网络"的窗；没有就不监听，免得打扰用户。
 pub fn firewall_has_rule() -> bool {
